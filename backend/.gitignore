@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+.venv/
+venv/
+env/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Local data and generated artifacts
+chroma_db/
+.chroma/
+rag_debug.log
+memory.json
+*.sqlite3
+*.db
+
+# Uploaded/local documents for testing
+*.pdf
+*.docx
+
+# Tooling
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.ipynb

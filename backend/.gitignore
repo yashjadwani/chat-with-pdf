@@ -3,8 +3,10 @@ __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
+*.pyc
 .Python
 .venv/
+.pycache_check/
 venv/
 env/
 
@@ -15,6 +17,7 @@ env/
 
 # Local data and generated artifacts
 chroma_db/
+chroma_data/
 .chroma/
 rag_debug.log
 memory.json

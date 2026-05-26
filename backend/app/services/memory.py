@@ -1,51 +1,102 @@
 import logging
+import time
 
 import httpx
-from langchain.memory import ConversationBufferWindowMemory
+from langchain_core.chat_history import InMemoryChatMessageHistory
 
 from app.core.config import get_settings
+from app.db.supabase import ApiLogDB, ChatDB
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
-# In-process session store, keyed by session_id.
-# Lives in Modal container memory and is not persisted across restarts.
-_sessions: dict[str, ConversationBufferWindowMemory] = {}
+# Warm in-process cache. Supabase remains the persistent source of truth.
+_sessions: dict[str, InMemoryChatMessageHistory] = {}
 _summaries: dict[str, str] = {}
 
-def get_session_memory(session_id: str) -> ConversationBufferWindowMemory:
+
+def _new_memory() -> InMemoryChatMessageHistory:
+    return InMemoryChatMessageHistory()
+
+
+def get_session_memory(
+    session_id: str,
+    user_id: str | None = None,
+    document_id: str | None = None,
+) -> InMemoryChatMessageHistory:
     """
-    Get or create a ConversationBufferWindowMemory for a session.
-    Session ID is typically f"{user_id}_{document_id}".
+    Get or create a LangChain memory object.
+    When user_id/document_id are provided, hydrate it from persistent chat_messages.
     """
-    if session_id not in _sessions:
-        _sessions[session_id] = ConversationBufferWindowMemory(
-            k=settings.memory_window_size,
-            return_messages=True,
-            human_prefix="User",
-            ai_prefix="Assistant",
+    if session_id in _sessions:
+        return _sessions[session_id]
+
+    memory = _new_memory()
+    if user_id and document_id:
+        chat_db = ChatDB()
+        message_limit = settings.keep_recent * 2 if _summaries.get(session_id) else settings.summary_threshold
+        recent_messages = chat_db.get_recent_messages(
+            session_id=session_id,
+            limit=message_limit,
         )
-        logger.info(f"Created new memory session: {session_id}")
+        for message in recent_messages:
+            if message["role"] == "user":
+                memory.add_user_message(message["content"])
+            elif message["role"] == "assistant":
+                memory.add_ai_message(message["content"])
 
-    return _sessions[session_id]
+    _sessions[session_id] = memory
+    logger.info(f"Created memory session: {session_id}")
+    return memory
 
 
-def save_exchange(session_id: str, question: str, answer: str) -> None:
-    """Save a question/answer pair to the session memory."""
-    memory = get_session_memory(session_id)
-    memory.save_context(
-        inputs={"input": question},
-        outputs={"output": answer},
+def hydrate_summary(session_id: str, summary: str | None) -> None:
+    if summary:
+        _summaries[session_id] = summary
+
+
+def save_exchange(
+    session_id: str,
+    user_id: str,
+    document_id: str,
+    question: str,
+    answer: str,
+    citations: list | None = None,
+) -> None:
+    """Save a question/answer pair to LangChain memory and Supabase."""
+    memory = get_session_memory(session_id, user_id, document_id)
+    memory.add_user_message(question)
+    memory.add_ai_message(answer)
+
+    chat_db = ChatDB()
+    chat_db.insert_message(
+        session_id=session_id,
+        user_id=user_id,
+        document_id=document_id,
+        role="user",
+        content=question,
+    )
+    chat_db.insert_message(
+        session_id=session_id,
+        user_id=user_id,
+        document_id=document_id,
+        role="assistant",
+        content=answer,
+        citations=citations or [],
     )
 
 
-async def summarize_if_needed(session_id: str) -> None:
+async def summarize_if_needed(
+    session_id: str,
+    user_id: str,
+    document_id: str,
+) -> None:
     """
-    If history grows beyond 20 messages, summarize older messages and keep
-    the last two turns as the live tail for follow-up questions.
+    If history grows beyond threshold, summarize older messages and keep
+    the last configured number of turns as the live tail.
     """
-    memory = get_session_memory(session_id)
-    messages = memory.chat_memory.messages
+    memory = get_session_memory(session_id, user_id, document_id)
+    messages = memory.messages
 
     if len(messages) <= settings.summary_threshold:
         return
@@ -69,6 +120,8 @@ async def summarize_if_needed(session_id: str) -> None:
         prompt += f"Existing summary:\n{previous_summary}\n\n"
     prompt += f"Older messages to summarize:\n{older_text}"
 
+    started_at = time.perf_counter()
+    usage = {}
     try:
         async with httpx.AsyncClient(timeout=45.0) as client:
             response = await client.post(
@@ -94,32 +147,75 @@ async def summarize_if_needed(session_id: str) -> None:
             )
             response.raise_for_status()
             data = response.json()
+            usage = data.get("usage") or {}
     except Exception as exc:
+        ApiLogDB().insert_log(
+            purpose="memory_summary",
+            model=settings.opencode_model,
+            status="error",
+            user_id=user_id,
+            document_id=document_id,
+            session_id=session_id,
+            user_prompt="memory_summary",
+            latency_ms=int((time.perf_counter() - started_at) * 1000),
+            request_metadata={
+                "older_message_count": len(older_messages),
+                "previous_summary_length": len(previous_summary),
+            },
+            error_message=str(exc),
+        )
         logger.warning(f"Failed to summarize memory session {session_id}: {str(exc)}")
         return
 
-    _summaries[session_id] = data["choices"][0]["message"]["content"]
-    memory.chat_memory.messages = tail_messages
+    summary = data["choices"][0]["message"]["content"]
+    _summaries[session_id] = summary
+    memory.messages = tail_messages
+    ChatDB().update_summary(session_id=session_id, summary=summary)
+    ApiLogDB().insert_log(
+        purpose="memory_summary",
+        model=settings.opencode_model,
+        status="success",
+        user_id=user_id,
+        document_id=document_id,
+        session_id=session_id,
+        user_prompt="memory_summary",
+        latency_ms=int((time.perf_counter() - started_at) * 1000),
+        prompt_tokens=usage.get("prompt_tokens"),
+        completion_tokens=usage.get("completion_tokens"),
+        total_tokens=usage.get("total_tokens"),
+        request_metadata={
+            "older_message_count": len(older_messages),
+            "tail_message_count": len(tail_messages),
+            "previous_summary_length": len(previous_summary),
+        },
+        response_metadata={
+            "summary_length": len(summary),
+            "usage_raw": usage,
+        },
+    )
     logger.info(f"Summarized memory session: {session_id}")
 
 
-async def get_history_string(session_id: str) -> str:
-    """
-    Return summary plus the recent tail as a formatted string for prompts.
-    Summarizes before building context when the session exceeds 20 messages.
-    """
-    await summarize_if_needed(session_id)
+async def get_history_string(
+    session_id: str,
+    user_id: str,
+    document_id: str,
+    summary: str | None = None,
+) -> str:
+    """Return summary plus recent tail as a formatted string for prompts."""
+    hydrate_summary(session_id, summary)
+    await summarize_if_needed(session_id, user_id, document_id)
 
-    memory = get_session_memory(session_id)
-    summary = _summaries.get(session_id, "")
-    history_messages = memory.chat_memory.messages
+    memory = get_session_memory(session_id, user_id, document_id)
+    saved_summary = _summaries.get(session_id, "")
+    history_messages = memory.messages
 
-    if not summary and not history_messages:
+    if not saved_summary and not history_messages:
         return ""
 
     lines = []
-    if summary:
-        lines.append(f"Summary of earlier conversation: {summary}")
+    if saved_summary:
+        lines.append(f"Summary of earlier conversation: {saved_summary}")
 
     for message in history_messages:
         role = "User" if message.type == "human" else "Assistant"
@@ -128,29 +224,21 @@ async def get_history_string(session_id: str) -> str:
     return "\n".join(lines)
 
 
-def get_history_messages(session_id: str) -> list[dict]:
-    """Return summary and recent history as a list of {role, content} dicts."""
-    memory = get_session_memory(session_id)
-    result = []
-
-    summary = _summaries.get(session_id)
-    if summary:
-        result.append(
-            {
-                "role": "system",
-                "content": f"Summary of earlier conversation: {summary}",
-            }
-        )
-
-    for message in memory.chat_memory.messages:
-        role = "user" if message.type == "human" else "assistant"
-        result.append({"role": role, "content": message.content})
-
-    return result
+def get_history_messages(session_id: str, user_id: str, document_id: str) -> list[dict]:
+    """Return persisted chat history as a list of {role, content} dicts."""
+    messages = ChatDB().get_recent_messages(session_id=session_id, limit=200)
+    return [
+        {
+            "role": message["role"],
+            "content": message["content"],
+            "citations": message.get("citations") or [],
+        }
+        for message in messages
+    ]
 
 
 def clear_session(session_id: str) -> None:
-    """Clear memory and summary for a session."""
+    """Clear memory, summary, and persisted messages for a session."""
     removed = False
     if session_id in _sessions:
         del _sessions[session_id]
@@ -158,10 +246,10 @@ def clear_session(session_id: str) -> None:
     if session_id in _summaries:
         del _summaries[session_id]
         removed = True
-    if removed:
-        logger.info(f"Cleared memory session: {session_id}")
+    ChatDB().clear_session_messages(session_id)
+    logger.info(f"Cleared memory session: {session_id}")
 
 
 def active_sessions() -> list[str]:
-    """Return list of active session IDs for debugging."""
+    """Return list of active in-process session IDs for debugging."""
     return list(_sessions.keys())

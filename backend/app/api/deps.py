@@ -13,6 +13,7 @@ async def get_current_user(
     Returns the full JWT payload including user_id (sub).
     Inject into any route that requires authentication.
     """
+    
     token = credentials.credentials
     payload = verify_supabase_jwt(token)
     user_id = extract_user_id(payload)

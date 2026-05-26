@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
 
 
@@ -25,6 +25,7 @@ class ChatQueryResponse(BaseModel):
 class ChatMessage(BaseModel):
     role: str  # "human" or "assistant"
     content: str
+    citations: list[Citation] = Field(default_factory=list)
 
 
 class ChatHistoryResponse(BaseModel):

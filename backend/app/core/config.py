@@ -1,4 +1,4 @@
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
 
 
@@ -6,7 +6,7 @@ class Settings(BaseSettings):
     # Supabase
     supabase_url: str
     supabase_service_role_key: str
-    supabase_jwt_secret: str
+    app_enviorment:str
 
     # OpenRouter
     openrouter_api_key: str
@@ -23,12 +23,12 @@ class Settings(BaseSettings):
     embedding_model: str = "intfloat/multilingual-e5-small"
 
     # ChromaDB
-    chroma_persist_path: str = "/chroma_data"
+    chroma_persist_path: str = "./chroma_data"
     chroma_collection_name: str = "chat_with_pdf"
 
     # Chunking
     chunk_size: int = 512
-    chunk_overlap: int = 50
+    chunk_overlap: int = 64
 
     # Retrieval
     retrieval_top_k: int = 5
@@ -45,12 +45,14 @@ class Settings(BaseSettings):
 
     # App
     app_env: str = "development"
-    allowed_origins: str = "http://localhost:3000"
+    allowed_origins: str = "http://localhost:5173"
     max_file_size_mb: int = 50
 
-    class Config:
-        env_file = ".env"
-        case_sensitive = False
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        case_sensitive=False,
+        extra="ignore",
+    )
 
     @property
     def allowed_origins_list(self) -> list[str]:

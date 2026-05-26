@@ -1,9 +1,11 @@
 import logging
 import json
+import time
 
 import httpx
 
 from app.core.config import get_settings
+from app.db.supabase import ApiLogDB
 from app.models.chat import Citation
 from app.services.retrieval import format_context
 
@@ -63,35 +65,6 @@ Question: {question}"""
     return messages
 
 
-async def call_opencode(
-    messages: list[dict],
-    model: str,
-) -> str:
-    """
-    Call the Opencode API with the given messages and model.
-    Returns the assistant's reply text.
-    """
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        response = await client.post(
-            f"{settings.opencode_base_url}/chat/completions",
-            headers={
-                "Authorization": f"Bearer {settings.opencode_api_key}",
-                "Content-Type": "application/json",
-                "HTTP-Referer": "https://chatwithpdf.app",
-                "X-Title": "Chat with PDF",
-            },
-            json={
-                "model": model,
-                "messages": messages,
-                "max_tokens": 1024,
-                "temperature": 0.1,
-            },
-        )
-        response.raise_for_status()
-        data = response.json()
-        return data["choices"][0]["message"]["content"]
-
-
 async def stream_opencode(
     messages: list[dict],
     model: str,
@@ -134,6 +107,9 @@ async def generate_answer(
     question: str,
     citations: list[Citation],
     conversation_history: str,
+    user_id: str | None = None,
+    document_id: str | None = None,
+    session_id: str | None = None,
 ) -> tuple[str, str]:
     """
     Generate an answer using retrieved chunks.
@@ -146,15 +122,96 @@ async def generate_answer(
         conversation_history=conversation_history,
     )
 
+    started_at = time.perf_counter()
+    request_metadata = {
+        "question_length": len(question),
+        "retrieved_chunks": len(citations),
+        "chunk_refs": [
+            {"page": citation.page_number, "chunk_index": citation.chunk_index}
+            for citation in citations
+        ],
+        "context_char_count": len(context),
+        "conversation_history_length": len(conversation_history),
+        "stream": False,
+    }
     try:
         logger.info(f"Calling Opencode model: {settings.opencode_model}")
-        answer = await call_opencode(messages=messages, model=settings.opencode_model)
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(
+                f"{settings.opencode_base_url}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {settings.opencode_api_key}",
+                    "Content-Type": "application/json",
+                    "HTTP-Referer": "https://chatwithpdf.app",
+                    "X-Title": "Chat with PDF",
+                },
+                json={
+                    "model": settings.opencode_model,
+                    "messages": messages,
+                    "temperature": 0.1,
+                },
+            )
+            response.raise_for_status()
+            data = response.json()
+        answer = data["choices"][0]["message"]["content"]
+        usage = data.get("usage") or {}
+        ApiLogDB().insert_log(
+            purpose="chat_answer",
+            model=settings.opencode_model,
+            status="success",
+            user_id=user_id,
+            document_id=document_id,
+            session_id=session_id,
+            user_prompt=question,
+            latency_ms=int((time.perf_counter() - started_at) * 1000),
+            prompt_tokens=usage.get("prompt_tokens"),
+            completion_tokens=usage.get("completion_tokens"),
+            total_tokens=usage.get("total_tokens"),
+            request_metadata=request_metadata,
+            response_metadata={
+                "answer_length": len(answer),
+                "usage_raw": usage,
+                "provider_id": data.get("id"),
+                "provider_created": data.get("created"),
+                "provider_object": data.get("object"),
+            },
+            response_content=answer,
+            raw_response=data,
+        )
         return answer, settings.opencode_model
     except httpx.HTTPStatusError as exc:
         logger.error(f"Opencode model error: {exc.response.status_code} {exc.response.text}")
+        ApiLogDB().insert_log(
+            purpose="chat_answer",
+            model=settings.opencode_model,
+            status="error",
+            user_id=user_id,
+            document_id=document_id,
+            session_id=session_id,
+            user_prompt=question,
+            latency_ms=int((time.perf_counter() - started_at) * 1000),
+            request_metadata=request_metadata,
+            raw_response={
+                "status_code": exc.response.status_code,
+                "body": exc.response.text,
+            },
+            error_message=f"{exc.response.status_code} {exc.response.text}",
+        )
         raise RuntimeError("LLM call failed. Please try again later.") from exc
     except Exception as exc:
         logger.error(f"Opencode model exception: {str(exc)}")
+        ApiLogDB().insert_log(
+            purpose="chat_answer",
+            model=settings.opencode_model,
+            status="error",
+            user_id=user_id,
+            document_id=document_id,
+            session_id=session_id,
+            user_prompt=question,
+            latency_ms=int((time.perf_counter() - started_at) * 1000),
+            request_metadata=request_metadata,
+            error_message=str(exc),
+        )
         raise RuntimeError("LLM call failed. Please try again later.") from exc
 
 

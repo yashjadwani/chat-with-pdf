@@ -1,8 +1,9 @@
 from supabase import create_client, Client
 from app.core.config import get_settings
-from app.models.document import DocumentRecord, DocumentStatus
+from app.models.document import DocumentStatus
 from typing import Optional
 from functools import lru_cache
+from datetime import datetime, timezone
 import logging
 
 logger = logging.getLogger(__name__)
@@ -15,7 +16,6 @@ def get_supabase_client() -> Client:
         settings.supabase_url,
         settings.supabase_service_role_key,  # service role bypasses RLS for backend ops
     )
-
 
 class DocumentDB:
     def __init__(self):
@@ -136,3 +136,133 @@ class StorageDB:
         """Delete a file from Supabase Storage."""
         self.client.storage.from_(self.bucket).remove([storage_path])
         return True
+
+
+class ChatDB:
+    def __init__(self):
+        self.client = get_supabase_client()
+
+    def get_or_create_default_session(self, user_id: str, document_id: str) -> dict:
+        """Return the default chat session for a user/document, creating it if needed."""
+        existing = (
+            self.client.table("chat_sessions")
+            .select("*")
+            .eq("user_id", user_id)
+            .eq("document_id", document_id)
+            .eq("is_default", True)
+            .limit(1)
+            .execute()
+        )
+        if existing.data:
+            return existing.data[0]
+
+        created = (
+            self.client.table("chat_sessions")
+            .insert(
+                {
+                    "user_id": user_id,
+                    "document_id": document_id,
+                    "is_default": True,
+                }
+            )
+            .execute()
+        )
+        return created.data[0]
+
+    def update_summary(self, session_id: str, summary: str) -> None:
+        self.client.table("chat_sessions").update(
+            {"summary": summary, "updated_at": datetime.now(timezone.utc).isoformat()}
+        ).eq("session_id", session_id).execute()
+
+    def get_recent_messages(self, session_id: str, limit: int) -> list[dict]:
+        response = (
+            self.client.table("chat_messages")
+            .select("*")
+            .eq("session_id", session_id)
+            .order("created_at", desc=True)
+            .limit(limit)
+            .execute()
+        )
+        return list(reversed(response.data or []))
+
+    def insert_message(
+        self,
+        session_id: str,
+        user_id: str,
+        document_id: str,
+        role: str,
+        content: str,
+        citations: list | None = None,
+        metadata: dict | None = None,
+    ) -> dict:
+        response = (
+            self.client.table("chat_messages")
+            .insert(
+                {
+                    "session_id": session_id,
+                    "user_id": user_id,
+                    "document_id": document_id,
+                    "role": role,
+                    "content": content,
+                    "citations": citations or [],
+                    "metadata": metadata or {},
+                }
+            )
+            .execute()
+        )
+        return response.data[0]
+
+    def clear_session_messages(self, session_id: str) -> None:
+        self.client.table("chat_messages").delete().eq("session_id", session_id).execute()
+        self.client.table("chat_sessions").update(
+            {"summary": None, "updated_at": datetime.now(timezone.utc).isoformat()}
+        ).eq("session_id", session_id).execute()
+
+
+class ApiLogDB:
+    def __init__(self):
+        self.client = get_supabase_client()
+
+    def insert_log(
+        self,
+        purpose: str,
+        model: str,
+        status: str,
+        user_id: str | None = None,
+        document_id: str | None = None,
+        session_id: str | None = None,
+        user_prompt: str | None = None,
+        latency_ms: int | None = None,
+        prompt_tokens: int | None = None,
+        completion_tokens: int | None = None,
+        total_tokens: int | None = None,
+        request_metadata: dict | None = None,
+        response_metadata: dict | None = None,
+        response_content: str | None = None,
+        raw_response: dict | list | None = None,
+        error_message: str | None = None,
+    ) -> None:
+        try:
+            self.client.table("api_logs").insert(
+                {
+                    "user_id": user_id,
+                    "document_id": document_id,
+                    "session_id": session_id,
+                    "purpose": purpose,
+                    "provider": "opencode",
+                    "model": model,
+                    "status": status,
+                    "user_prompt": user_prompt,
+                    "latency_ms": latency_ms,
+                    "prompt_tokens": prompt_tokens,
+                    "completion_tokens": completion_tokens,
+                    "total_tokens": total_tokens,
+                    "request_metadata": request_metadata or {},
+                    "response_metadata": response_metadata or {},
+                    "response_content": response_content,
+                    "raw_response": raw_response,
+                    "error_message": error_message,
+                }
+            ).execute()
+        except Exception as exc:
+            logger.warning(f"Failed to write API log: {str(exc)}")

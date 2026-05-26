@@ -19,8 +19,7 @@ async def lifespan(app: FastAPI):
     """Startup and shutdown events."""
     logger.info("Starting Chat with PDF backend...")
     logger.info(f"Environment: {settings.app_env}")
-    logger.info(f"Primary LLM: {settings.llm_primary}")
-    logger.info(f"Fallback LLM: {settings.llm_fallback}")
+    logger.info(f"Opencode model: {settings.opencode_model}")
     logger.info(f"Embedding model: {settings.embedding_model}")
     logger.info(f"ChromaDB path: {settings.chroma_persist_path}")
 
@@ -61,7 +60,7 @@ app.include_router(chat.router)
 async def health():
     return {
         "status": "ok",
-        "env": settings.app_env,
+        "env": settings.app_enviorment,
         "version": "1.0.0",
     }
 

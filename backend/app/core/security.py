@@ -1,9 +1,17 @@
 import jwt
 from fastapi import HTTPException, status
 from app.core.config import get_settings
+from functools import lru_cache
+from jwt import PyJWKClient
 
 settings = get_settings()
 
+def get_supabase_jwks_url() -> str:
+    return f"{settings.supabase_url.rstrip('/')}/auth/v1/.well-known/jwks.json"
+
+@lru_cache()
+def get_jwks_client() -> PyJWKClient:
+    return PyJWKClient(get_supabase_jwks_url())
 
 def verify_supabase_jwt(token: str) -> dict:
     """
@@ -11,11 +19,12 @@ def verify_supabase_jwt(token: str) -> dict:
     Raises HTTPException if token is invalid or expired.
     """
     try:
+        signing_key = get_jwks_client().get_signing_key_from_jwt(token)
         payload = jwt.decode(
             token,
-            settings.supabase_jwt_secret,
-            algorithms=["HS256"],
-            options={"verify_aud": False},  # Supabase doesn't set aud by default
+            signing_key.key,
+            algorithms=["ES256"],
+            options={"verify_aud": False},
         )
         return payload
 
@@ -25,10 +34,18 @@ def verify_supabase_jwt(token: str) -> dict:
             detail="Token has expired",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
     except jwt.InvalidTokenError as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Invalid token: {str(e)}",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Token verification failed: {str(e)}",
             headers={"WWW-Authenticate": "Bearer"},
         )
 

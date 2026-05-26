@@ -10,13 +10,13 @@ export function DocumentList({
   documents: PdfDocument[];
   selectedId: string | null;
   onOpen: (document: PdfDocument) => void;
-  onDelete: (documentId: string) => void;
+  onDelete: (document: PdfDocument) => void;
 }) {
   if (documents.length === 0) {
     return (
       <div className="empty-state">
         <p>No documents yet.</p>
-        <span>Upload a PDF to begin the RAG loop.</span>
+        <span>Upload a document to start asking questions.</span>
       </div>
     );
   }
@@ -29,7 +29,7 @@ export function DocumentList({
           document={document}
           selected={document.document_id === selectedId}
           onOpen={() => onOpen(document)}
-          onDelete={() => onDelete(document.document_id)}
+          onDelete={() => onDelete(document)}
         />
       ))}
     </div>

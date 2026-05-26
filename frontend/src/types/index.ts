@@ -24,3 +24,9 @@ export type ChatMessage = {
   content: string;
   citations?: Citation[];
 };
+
+export type PersistedChatMessage = {
+  role: "user" | "assistant" | "system";
+  content: string;
+  citations?: Citation[];
+};

@@ -1,5 +1,5 @@
 import { getAccessToken } from "./supabase";
-import type { ChatMessage, PdfDocument, Citation } from "../types";
+import type { ChatMessage, PdfDocument, Citation, PersistedChatMessage } from "../types";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 
@@ -24,10 +24,21 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
   if (!response.ok) {
     const message = await response.text();
-    throw new Error(message || "Request failed.");
+    throw new Error(parseApiError(message) || "Request failed.");
   }
 
   return response.json() as Promise<T>;
+}
+
+function parseApiError(message: string) {
+  if (!message) return "";
+
+  try {
+    const parsed = JSON.parse(message);
+    return typeof parsed.detail === "string" ? parsed.detail : message;
+  } catch {
+    return message;
+  }
 }
 
 export async function listDocuments() {
@@ -59,6 +70,18 @@ export async function askDocument(documentId: string, question: string) {
   }>("/chat/query", {
     method: "POST",
     body: JSON.stringify({ document_id: documentId, question })
+  });
+}
+
+export async function getChatHistory(documentId: string) {
+  return request<{ session_id: string; messages: PersistedChatMessage[] }>(
+    `/chat/history/${documentId}`
+  );
+}
+
+export async function clearChatHistory(documentId: string) {
+  return request<{ message: string; session_id: string }>(`/chat/history/${documentId}`, {
+    method: "DELETE"
   });
 }
 

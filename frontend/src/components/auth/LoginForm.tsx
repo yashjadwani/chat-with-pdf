@@ -25,7 +25,12 @@ export function LoginForm({ onModeChange }: { onModeChange: () => void }) {
     }
 
     const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
-    if (authError) setError(authError.message);
+    if (authError) {
+      const message = authError.message.toLowerCase().includes("email not confirmed")
+        ? "Please verify your email before signing in."
+        : authError.message;
+      setError(message);
+    }
     setLoading(false);
   }
 

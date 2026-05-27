@@ -5,6 +5,7 @@ import {
   FileText,
   Gauge,
   LogOut,
+  MailCheck,
   MessageSquareText,
   Moon,
   RefreshCw,
@@ -46,6 +47,7 @@ function BrandLogo({ compact = false }: { compact?: boolean }) {
 export function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [authMode, setAuthMode] = useState<"login" | "signup">("login");
+  const [pendingVerificationEmail, setPendingVerificationEmail] = useState("");
   const [theme, setTheme] = useState<Theme>(() => {
     return (localStorage.getItem("chat-pdf-theme") as Theme | null) ?? "light";
   });
@@ -184,10 +186,21 @@ export function App() {
         </section>
 
         <section className="auth-card">
-          {authMode === "login" ? (
+          {pendingVerificationEmail ? (
+            <CheckEmailPanel
+              email={pendingVerificationEmail}
+              onBackToLogin={() => {
+                setPendingVerificationEmail("");
+                setAuthMode("login");
+              }}
+            />
+          ) : authMode === "login" ? (
             <LoginForm onModeChange={() => setAuthMode("signup")} />
           ) : (
-            <SignupForm onModeChange={() => setAuthMode("login")} />
+            <SignupForm
+              onModeChange={() => setAuthMode("login")}
+              onVerificationNeeded={(email) => setPendingVerificationEmail(email)}
+            />
           )}
         </section>
       </main>
@@ -356,6 +369,54 @@ function DocumentSkeletonList() {
         </div>
       ))}
     </div>
+  );
+}
+
+function CheckEmailPanel({
+  email,
+  onBackToLogin
+}: {
+  email: string;
+  onBackToLogin: () => void;
+}) {
+  const [message, setMessage] = useState("");
+  const [resending, setResending] = useState(false);
+
+  async function resendConfirmation() {
+    setResending(true);
+    setMessage("");
+    const { error } = await supabase.auth.resend({
+      type: "signup",
+      email
+    });
+    setMessage(error ? error.message : "Verification email sent again.");
+    setResending(false);
+  }
+
+  return (
+    <section className="auth-form check-email-panel" aria-labelledby="check-email-title">
+      <div className="mail-hero">
+        <MailCheck size={30} />
+      </div>
+      <div className="form-heading centered">
+        <div>
+          <h1 id="check-email-title">Check your email</h1>
+          <p>
+            We sent a verification link to <strong>{email}</strong>. Verify your account,
+            then come back and sign in.
+          </p>
+        </div>
+      </div>
+
+      {message && <p className={message.includes("sent") ? "form-note form-success" : "form-error"}>{message}</p>}
+
+      <Button onClick={resendConfirmation} disabled={resending} type="button">
+        {resending ? "Sending" : "Resend email"}
+      </Button>
+      <button className="text-button" type="button" onClick={onBackToLogin}>
+        Back to login
+      </button>
+    </section>
   );
 }
 

@@ -5,12 +5,19 @@ import { Button } from "../ui/Button";
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export function SignupForm({ onModeChange }: { onModeChange: () => void }) {
+export function SignupForm({
+  onModeChange,
+  onVerificationNeeded
+}: {
+  onModeChange: () => void;
+  onVerificationNeeded: (email: string) => void;
+}) {
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [message, setMessage] = useState("");
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -35,7 +42,7 @@ export function SignupForm({ onModeChange }: { onModeChange: () => void }) {
       return;
     }
 
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -44,8 +51,14 @@ export function SignupForm({ onModeChange }: { onModeChange: () => void }) {
         }
       }
     });
-    setMessage(error ? error.message : "Account created. Check your email if confirmation is enabled.");
-    setSuccess(!error);
+    if (error) {
+      setMessage(error.message);
+      setSuccess(false);
+    } else {
+      if (data.session) await supabase.auth.signOut();
+      setSuccess(true);
+      onVerificationNeeded(email.trim());
+    }
     setLoading(false);
   }
 
@@ -117,7 +130,7 @@ export function SignupForm({ onModeChange }: { onModeChange: () => void }) {
           <input
             value={confirmPassword}
             onChange={(event) => setConfirmPassword(event.target.value)}
-            type={showPassword ? "text" : "password"}
+            type={showConfirmPassword ? "text" : "password"}
             autoComplete="new-password"
             minLength={6}
             required
@@ -125,10 +138,10 @@ export function SignupForm({ onModeChange }: { onModeChange: () => void }) {
           <button
             className="input-icon-button"
             type="button"
-            onClick={() => setShowPassword((current) => !current)}
-            aria-label={showPassword ? "Hide confirm password" : "Show confirm password"}
+            onClick={() => setShowConfirmPassword((current) => !current)}
+            aria-label={showConfirmPassword ? "Hide confirm password" : "Show confirm password"}
           >
-            {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+            {showConfirmPassword ? <EyeOff size={17} /> : <Eye size={17} />}
           </button>
         </span>
         {passwordsDoNotMatch && <span className="field-error">Passwords do not match.</span>}

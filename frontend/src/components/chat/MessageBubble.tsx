@@ -2,9 +2,12 @@ import type { ReactNode } from "react";
 import type { ChatMessage } from "../../types";
 
 function renderInlineMarkdown(text: string): ReactNode[] {
-  return text.split(/(\*\*[^*]+\*\*)/g).map((part, index) => {
+  return text.split(/(\*\*[^*]+\*\*|<br\s*\/?>)/gi).map((part, index) => {
     if (part.startsWith("**") && part.endsWith("**")) {
       return <strong key={index}>{part.slice(2, -2)}</strong>;
+    }
+    if (/^<br\s*\/?>$/i.test(part)) {
+      return <br key={index} />;
     }
     return part;
   });
@@ -30,6 +33,10 @@ function renderMessageContent(content: string) {
 
   function isTableSeparator(line: string) {
     return /^\|?[\s:-]+\|[\s|:-]+$/.test(line);
+  }
+
+  function isTableRow(line: string) {
+    return (line.match(/\|/g)?.length ?? 0) >= 2;
   }
 
   function parseTableRow(line: string) {
@@ -81,7 +88,7 @@ function renderMessageContent(content: string) {
       return;
     }
 
-    if (trimmed.startsWith("|") && trimmed.endsWith("|")) {
+    if (isTableRow(trimmed)) {
       if (isTableSeparator(trimmed)) return;
       flushList();
       tableRows.push(parseTableRow(trimmed));

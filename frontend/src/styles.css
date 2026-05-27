@@ -481,6 +481,11 @@ textarea:focus-visible {
   margin-bottom: 4px;
 }
 
+.form-heading.centered {
+  display: block;
+  text-align: center;
+}
+
 .form-heading svg {
   width: 40px;
   height: 40px;
@@ -502,6 +507,10 @@ textarea:focus-visible {
   margin: 4px 0 0;
   color: var(--muted);
   line-height: 1.5;
+}
+
+.form-heading strong {
+  color: var(--ink);
 }
 
 .form-note,
@@ -609,6 +618,41 @@ textarea:focus {
   font-size: 0.78rem;
   font-weight: 850;
   line-height: 1.2;
+}
+
+.check-email-panel {
+  justify-items: center;
+  text-align: center;
+}
+
+.mail-hero {
+  width: 72px;
+  height: 72px;
+  display: grid;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--blue-strong) 24%, var(--line));
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 28% 20%, rgba(255, 255, 255, 0.82), transparent 34%),
+    var(--logo-bg);
+  color: var(--logo-ink);
+  box-shadow: var(--shadow-sm);
+}
+
+.verification-steps {
+  width: 100%;
+  display: grid;
+  gap: 8px;
+}
+
+.verification-steps span {
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--panel-strong) 76%, transparent);
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+  font-weight: 800;
 }
 
 .input-icon-button:hover {

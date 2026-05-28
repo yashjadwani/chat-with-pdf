@@ -482,7 +482,23 @@ function ProjectOverview({
             {recentDocuments.map((document) => {
               const displayName = document.filename.replace(/\.pdf$/i, "");
               return (
-                <article className="overview-doc-card" key={document.document_id}>
+                <article
+                  className={`overview-doc-card ${document.status === "ready" ? "is-openable" : ""}`}
+                  key={document.document_id}
+                  role={document.status === "ready" ? "button" : undefined}
+                  tabIndex={document.status === "ready" ? 0 : undefined}
+                  onClick={() => {
+                    if (document.status === "ready") onOpenDocument(document);
+                  }}
+                  onKeyDown={(event) => {
+                    if (document.status !== "ready") return;
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      onOpenDocument(document);
+                    }
+                  }}
+                  aria-label={document.status === "ready" ? `Open ${displayName}` : undefined}
+                >
                   <div className="overview-doc-card-top">
                     <span className="overview-doc-file-icon" aria-hidden="true">
                       <FileText size={20} />
@@ -496,14 +512,6 @@ function ProjectOverview({
                     <span>{document.total_pages ?? "-"} pages</span>
                     <span>{document.language ?? "Detecting"}</span>
                   </div>
-                  <Button
-                    variant={document.status === "ready" ? "primary" : "quiet"}
-                    disabled={document.status !== "ready"}
-                    onClick={() => onOpenDocument(document)}
-                  >
-                    <MessageSquareText size={16} />
-                    {document.status === "ready" ? "Ask questions" : "Preparing"}
-                  </Button>
                 </article>
               );
             })}

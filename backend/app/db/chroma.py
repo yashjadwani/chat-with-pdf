@@ -63,18 +63,47 @@ class ChromaStore:
         query_embedding: list[float],
         document_id: str,
         top_k: int = 5,
+        active_only: bool = True,
     ) -> dict:
         """
         Query ChromaDB filtered by document_id.
         Returns top_k most similar chunks with their metadata.
         """
+        where = {"document_id": document_id}
+        if active_only:
+            where = {"$and": [{"document_id": document_id}, {"is_active": True}]}
+
         results = self.collection.query(
             query_embeddings=[query_embedding],
             n_results=top_k,
-            where={"document_id": document_id},
+            where=where,
             include=["documents", "metadatas", "distances"],
         )
         return results
+
+    def get_document_chunks(self, document_id: str, active_only: bool = True) -> list[dict]:
+        """Return stored chunk text + metadata for one document."""
+        where = {"document_id": document_id}
+        if active_only:
+            where = {"$and": [{"document_id": document_id}, {"is_active": True}]}
+
+        results = self.collection.get(
+            where=where,
+            include=["documents", "metadatas"],
+        )
+
+        chunks = []
+        for chunk_id, text, metadata in zip(
+            results.get("ids", []),
+            results.get("documents", []),
+            results.get("metadatas", []),
+        ):
+            chunks.append({
+                "id": chunk_id,
+                "text": text,
+                "meta": metadata,
+            })
+        return chunks
 
     def delete_document_chunks(self, document_id: str) -> None:
         """Delete all chunks belonging to a document."""

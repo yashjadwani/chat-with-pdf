@@ -81,19 +81,19 @@ textarea:focus-visible {
 }
 
 [data-theme="dark"] {
-  color: #e8e1f0;
-  --paper: #252332;
-  --paper-soft: #302b3c;
-  --paper-warm: #342d3a;
-  --ink: #f0eaf6;
-  --ink-soft: #cbc3d9;
-  --muted: #aaa1ba;
-  --line: rgba(221, 209, 232, 0.16);
-  --line-strong: rgba(221, 209, 232, 0.26);
-  --blue: rgba(112, 151, 191, 0.24);
-  --blue-strong: #a9c8e8;
-  --lilac: rgba(142, 122, 189, 0.34);
-  --lilac-strong: #c8b9f2;
+  color: #dcd5e6;
+  --paper: #1f2030;
+  --paper-soft: #28283a;
+  --paper-warm: #2d2a3a;
+  --ink: #e8e0ec;
+  --ink-soft: #c5bdcf;
+  --muted: #9f96ad;
+  --line: rgba(226, 218, 240, 0.12);
+  --line-strong: rgba(226, 218, 240, 0.2);
+  --blue: rgba(134, 173, 214, 0.2);
+  --blue-strong: #b8d6f2;
+  --lilac: rgba(155, 139, 199, 0.32);
+  --lilac-strong: #d7cbff;
   --coral: #edaa96;
   --rose: rgba(232, 149, 150, 0.2);
   --amber: #e8c174;
@@ -101,16 +101,19 @@ textarea:focus-visible {
   --success: #8fd8ad;
   --shadow-sm: 0 10px 30px rgba(12, 10, 18, 0.24);
   --shadow: 0 28px 90px rgba(8, 7, 13, 0.42);
-  --panel-bg: rgba(36, 34, 49, 0.82);
-  --panel-strong: rgba(47, 43, 62, 0.86);
-  --control-bg: rgba(55, 50, 70, 0.82);
-  --control-hover: rgba(66, 59, 84, 0.92);
+  --panel-bg: rgba(31, 31, 46, 0.78);
+  --panel-strong: rgba(45, 43, 60, 0.84);
+  --control-bg: rgba(58, 54, 75, 0.74);
+  --control-hover: rgba(74, 68, 95, 0.9);
   --logo-bg: linear-gradient(135deg, #a9c8e8, #c8b9f2);
   --logo-ink: #242231;
-  --chip-bg: rgba(112, 151, 191, 0.2);
+  --chip-bg: rgba(134, 173, 214, 0.16);
   --danger-bg: rgba(239, 154, 164, 0.14);
   --table-head: rgba(169, 200, 232, 0.12);
-  --app-bg: linear-gradient(135deg, #191824, #252332 54%, #263242);
+  --app-bg:
+    radial-gradient(circle at 78% 12%, rgba(111, 148, 190, 0.2), transparent 30%),
+    radial-gradient(circle at 22% 86%, rgba(237, 170, 150, 0.12), transparent 30%),
+    linear-gradient(135deg, #1b1c2a, #242336 54%, #213040);
 }
 
 [data-theme="dark"] .brand-mark {
@@ -118,7 +121,7 @@ textarea:focus-visible {
   background:
     linear-gradient(135deg, rgba(169, 200, 232, 0.2), rgba(200, 185, 242, 0.1)),
     rgba(42, 38, 58, 0.92);
-  color: #fff9ef;
+  color: var(--ink);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.08),
     0 18px 38px rgba(8, 7, 13, 0.28);
@@ -144,6 +147,63 @@ textarea:focus-visible {
 
 [data-theme="dark"] .logo-bubble {
   fill: #edaa96;
+}
+
+[data-theme="dark"] input:focus,
+[data-theme="dark"] textarea:focus {
+  border-color: color-mix(in srgb, var(--blue-strong) 62%, var(--lilac-strong));
+  box-shadow: 0 0 0 4px rgba(184, 214, 242, 0.14);
+}
+
+[data-theme="dark"] .doc-status-ready,
+[data-theme="dark"] .doc-status-label-ready {
+  color: #9bc7f0;
+}
+
+[data-theme="dark"] .button-primary {
+  background: linear-gradient(135deg, #8d7ed0, #5f86b2);
+  box-shadow: 0 16px 34px rgba(95, 134, 178, 0.24);
+}
+
+[data-theme="dark"] .stream-pill,
+[data-theme="dark"] .quality-chip {
+  border: 1px solid rgba(184, 214, 242, 0.14);
+  background:
+    linear-gradient(135deg, rgba(184, 214, 242, 0.16), rgba(237, 170, 150, 0.06)),
+    rgba(43, 49, 68, 0.74);
+}
+
+[data-theme="dark"] .eyebrow,
+[data-theme="dark"] .status-badge,
+[data-theme="dark"] .quality-chip,
+[data-theme="dark"] .stream-pill,
+[data-theme="dark"] .doc-status-label,
+[data-theme="dark"] .button,
+[data-theme="dark"] .user-welcome span {
+  font-weight: 780;
+}
+
+[data-theme="dark"] .stage-header h1,
+[data-theme="dark"] .side-heading h1,
+[data-theme="dark"] .chat-header h2,
+[data-theme="dark"] .form-heading h1,
+[data-theme="dark"] .auth-copy h1 {
+  color: #e9e1ef;
+  font-weight: 700;
+}
+
+[data-theme="dark"] .doc-title-row h3,
+[data-theme="dark"] .user-welcome strong,
+[data-theme="dark"] .overview-doc-card h4,
+[data-theme="dark"] .message-content strong {
+  color: #e5deeb;
+  font-weight: 760;
+}
+
+[data-theme="dark"] .message-bubble,
+[data-theme="dark"] .message-content,
+[data-theme="dark"] .message-table td {
+  color: var(--ink-soft);
 }
 
 .auth-page[data-theme="dark"] {
@@ -725,6 +785,19 @@ textarea:focus {
   transition: background 220ms ease, color 220ms ease;
 }
 
+.workspace::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--line) 36%, transparent) 1px, transparent 1px),
+    linear-gradient(color-mix(in srgb, var(--line) 30%, transparent) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: linear-gradient(120deg, transparent, #000 28%, transparent 82%);
+  opacity: 0.34;
+}
+
 .sidebar,
 .main-stage {
   position: relative;
@@ -735,9 +808,32 @@ textarea:focus {
   height: 100vh;
   overflow: auto;
   padding: 18px;
-  border-right: 1px solid rgba(229, 217, 205, 0.92);
-  background: var(--panel-bg);
-  backdrop-filter: blur(16px);
+  border-right: 1px solid var(--line);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--panel-strong) 80%, transparent), transparent 62%),
+    var(--panel-bg);
+  backdrop-filter: blur(20px);
+}
+
+.sidebar::-webkit-scrollbar,
+.messages::-webkit-scrollbar,
+.overview-panel::-webkit-scrollbar {
+  width: 10px;
+}
+
+.sidebar::-webkit-scrollbar-track,
+.messages::-webkit-scrollbar-track,
+.overview-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar::-webkit-scrollbar-thumb,
+.messages::-webkit-scrollbar-thumb,
+.overview-panel::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--muted) 42%, transparent);
+  background-clip: padding-box;
 }
 
 .sidebar-top,
@@ -777,6 +873,7 @@ textarea:focus {
   background:
     linear-gradient(135deg, color-mix(in srgb, var(--blue) 28%, transparent), transparent 70%),
     var(--panel-strong);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 7%, transparent);
 }
 
 .user-welcome span {
@@ -876,9 +973,11 @@ textarea:focus {
   grid-template-columns: 32px minmax(0, 1fr) auto;
   gap: 9px;
   padding: 10px;
-  border: 1px solid rgba(229, 217, 205, 0.96);
+  border: 1px solid var(--line);
   border-radius: 8px;
-  background: var(--panel-bg);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--panel-strong) 74%, transparent), transparent),
+    var(--panel-bg);
   transition:
     transform 160ms ease,
     border-color 160ms ease,
@@ -898,13 +997,22 @@ textarea:focus {
 .document-card:hover,
 .document-card.selected {
   transform: translateY(-1px);
-  border-color: rgba(117, 101, 168, 0.48);
+  border-color: color-mix(in srgb, var(--blue-strong) 38%, var(--line));
   background: var(--panel-strong);
-  box-shadow: 0 14px 32px rgba(78, 72, 96, 0.12);
+  box-shadow: 0 18px 34px rgba(8, 7, 13, 0.18);
+}
+
+.document-card.is-openable {
+  cursor: pointer;
+}
+
+.document-card.is-openable:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--lilac-strong) 32%, transparent);
+  outline-offset: 2px;
 }
 
 .document-card.selected::before {
-  background: var(--coral);
+  background: linear-gradient(180deg, var(--coral), var(--blue-strong));
 }
 
 .doc-icon {
@@ -913,7 +1021,9 @@ textarea:focus {
   display: grid;
   place-items: center;
   border-radius: 8px;
-  background: var(--blue);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--blue-strong) 18%, transparent), transparent),
+    var(--blue);
   color: var(--blue-strong);
 }
 
@@ -1032,16 +1142,16 @@ textarea:focus {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   gap: 18px;
-  padding: 28px;
+  padding: 26px 28px 22px;
 }
 
 .stage-header {
-  min-height: 68px;
+  min-height: 58px;
 }
 
 .stage-header h1 {
   font-family: Georgia, "Times New Roman", serif;
-  font-size: clamp(2rem, 4vw, 3.75rem);
+  font-size: clamp(2rem, 3.4vw, 3.35rem);
   line-height: 1;
 }
 
@@ -1056,9 +1166,11 @@ textarea:focus {
   min-height: 0;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto auto;
-  border: 1px solid rgba(229, 217, 205, 0.94);
-  border-radius: 8px;
-  background: var(--panel-bg);
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--panel-strong) 74%, transparent), transparent 48%),
+    var(--panel-bg);
   animation: panelIn 360ms ease both;
   box-shadow: var(--shadow);
   overflow: hidden;
@@ -1199,6 +1311,15 @@ textarea:focus {
   box-shadow: 0 14px 30px rgba(78, 72, 96, 0.1);
 }
 
+.overview-doc-card.is-openable {
+  cursor: pointer;
+}
+
+.overview-doc-card.is-openable:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--blue-strong) 36%, transparent);
+  outline-offset: 3px;
+}
+
 .overview-doc-card-top,
 .overview-doc-card-meta {
   display: flex;
@@ -1305,16 +1426,18 @@ textarea:focus {
 }
 
 .chat-header {
-  padding: 18px 20px;
+  padding: 18px 20px 16px;
   border-bottom: 1px solid var(--line);
   background:
-    linear-gradient(180deg, color-mix(in srgb, var(--paper-warm) 74%, transparent), var(--panel-bg));
+    radial-gradient(circle at 5% 20%, color-mix(in srgb, var(--blue) 36%, transparent), transparent 34%),
+    linear-gradient(180deg, color-mix(in srgb, var(--paper-warm) 64%, transparent), transparent);
 }
 
 .chat-header h2 {
   max-width: min(58vw, 820px);
   overflow: hidden;
   color: var(--ink);
+  font-size: clamp(1.15rem, 1.8vw, 1.65rem);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1329,13 +1452,17 @@ textarea:focus {
 
 .chat-actions .button-quiet {
   flex: 0 0 auto;
+  border-color: color-mix(in srgb, var(--line) 72%, transparent);
+  background: color-mix(in srgb, var(--control-bg) 84%, transparent);
 }
 
 .messages {
   min-height: 0;
   overflow: auto;
-  padding: 22px;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--paper) 54%, transparent), transparent);
+  padding: 28px 22px;
+  background:
+    radial-gradient(circle at 76% 12%, color-mix(in srgb, var(--blue) 16%, transparent), transparent 32%),
+    linear-gradient(180deg, color-mix(in srgb, var(--paper) 38%, transparent), transparent);
 }
 
 .prompt-suggestions {
@@ -1346,9 +1473,11 @@ textarea:focus {
 
 .prompt-suggestions button {
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 12px;
   padding: 14px 16px;
-  background: var(--panel-strong);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--blue) 18%, transparent), transparent),
+    var(--panel-strong);
   color: var(--ink);
   text-align: left;
   font-weight: 850;
@@ -1371,7 +1500,7 @@ textarea:focus {
 
 .message-row {
   display: flex;
-  margin-bottom: 16px;
+  margin-bottom: 18px;
   animation: messageIn 220ms ease both;
 }
 
@@ -1384,20 +1513,26 @@ textarea:focus {
 }
 
 .message-bubble {
-  max-width: min(760px, 82%);
-  border-radius: 8px;
-  padding: 14px 16px;
-  line-height: 1.62;
-  box-shadow: 0 10px 28px rgba(78, 72, 96, 0.07);
+  max-width: min(760px, 78%);
+  border-radius: 18px;
+  padding: 15px 17px;
+  line-height: 1.66;
+  box-shadow: 0 18px 42px rgba(8, 7, 13, 0.14);
 }
 
 .message-row.user .message-bubble {
-  background: var(--lilac);
+  border-bottom-right-radius: 6px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--lilac-strong) 34%, transparent), transparent 80%),
+    color-mix(in srgb, var(--lilac) 82%, var(--panel-strong));
   color: var(--ink);
 }
 
 .message-row.assistant .message-bubble {
-  background: var(--panel-strong);
+  border-bottom-left-radius: 6px;
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--panel-strong) 96%, transparent), color-mix(in srgb, var(--paper) 64%, transparent)),
+    var(--panel-strong);
   border: 1px solid var(--line);
 }
 
@@ -1493,17 +1628,22 @@ textarea:focus {
   gap: 10px;
   padding: 16px;
   border-top: 1px solid var(--line);
-  background: color-mix(in srgb, var(--paper-warm) 62%, transparent);
+  background:
+    linear-gradient(180deg, transparent, color-mix(in srgb, var(--paper-warm) 54%, transparent)),
+    color-mix(in srgb, var(--panel-bg) 92%, transparent);
 }
 
 .query-input textarea {
   min-height: 54px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--control-bg) 74%, transparent);
 }
 
 .query-input .button {
   width: 48px;
   height: 48px;
   align-self: end;
+  border-radius: 12px;
   padding: 0;
 }
 

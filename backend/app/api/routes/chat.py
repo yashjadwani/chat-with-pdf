@@ -315,5 +315,9 @@ async def clear_chat_history(
         user_id=user_id,
         document_id=document_id,
     )
-    clear_session(session["session_id"])
+    clear_session(
+        session_id=session["session_id"],
+        user_id=user_id,
+        document_id=document_id,
+    )
     return {"message": "Conversation history cleared.", "session_id": session["session_id"]}

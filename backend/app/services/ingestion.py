@@ -1,8 +1,12 @@
+from datetime import UTC, datetime
+import io
 import fitz  # PyMuPDF
 import uuid
 import logging
 from langdetect import detect, LangDetectException
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from PIL import Image
+import pytesseract
 from sentence_transformers import SentenceTransformer
 from app.core.config import get_settings
 from app.db.chroma import ChromaStore
@@ -10,6 +14,8 @@ from app.db.supabase import DocumentDB, StorageDB
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
+if settings.tesseract_cmd:
+    pytesseract.pytesseract.tesseract_cmd = settings.tesseract_cmd
 
 # Load embedding model once at module level — Modal keeps this warm
 _embedding_model: SentenceTransformer | None = None
@@ -34,21 +40,52 @@ def detect_language(text: str) -> str:
         return "unknown"
 
 
+def page_has_images(page: fitz.Page) -> bool:
+    return len(page.get_images(full=True)) > 0
+
+
+def ocr_page(page: fitz.Page) -> str:
+    pix = page.get_pixmap(dpi=200)
+    image = Image.open(io.BytesIO(pix.tobytes("png")))
+    return pytesseract.image_to_string(image)
+
+
 def extract_text_by_page(pdf_bytes: bytes) -> list[dict]:
     """
     Extract text from PDF page by page using PyMuPDF.
-    Returns list of {page_number, text} dicts.
+    Runs OCR for scanned/low-text pages or pages containing images.
     """
     pages = []
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
 
     for page_num in range(len(doc)):
         page = doc[page_num]
-        text = page.get_text("text")
-        if text.strip():  # skip blank pages
+        text = page.get_text("text").strip()
+        has_images = page_has_images(page)
+        needs_ocr = settings.enable_ocr and (
+            len(text) < settings.ocr_min_text_chars or has_images
+        )
+
+        ocr_text = ""
+        if needs_ocr:
+            try:
+                ocr_text = ocr_page(page).strip()
+            except Exception as exc:
+                logger.warning(f"OCR failed on page {page_num + 1}: {str(exc)}")
+
+        combined_text = text
+        if ocr_text:
+            combined_text += "\n\n[OCR text]\n" + ocr_text
+
+        if combined_text.strip():
             pages.append({
                 "page_number": page_num + 1,  # 1-indexed
-                "text": text,
+                "text": combined_text.strip(),
+                "has_images": has_images,
+                "used_ocr": bool(ocr_text),
+                "text_chars": len(text),
+                "ocr_chars": len(ocr_text),
+                "source_type": "mixed" if text and ocr_text else "ocr" if ocr_text else "text",
             })
 
     doc.close()
@@ -92,6 +129,15 @@ def chunk_pages(
                 "chunk_index": global_chunk_index,
                 "language": language,
                 "source_file": source_file,
+                "is_active": True,
+                "created_at": datetime.now(UTC).isoformat(),
+                "word_count": len(chunk_text.split()),
+                "text_chars": len(chunk_text),
+                "source_type": page.get("source_type", "text"),
+                "has_images": bool(page.get("has_images", False)),
+                "used_ocr": bool(page.get("used_ocr", False)),
+                "page_text_chars": int(page.get("text_chars", 0)),
+                "page_ocr_chars": int(page.get("ocr_chars", 0)),
             }
 
             all_texts.append(chunk_text)
@@ -179,6 +225,8 @@ def ingest_document(document_id: str, user_id: str, filename: str) -> None:
             metadatas=metadatas,
             ids=ids,
         )
+        from app.services.retrieval import clear_bm25_cache
+        clear_bm25_cache(document_id)
 
         # Step 7 — Update Postgres to ready
         doc_db.set_ready(

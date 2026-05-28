@@ -6,6 +6,8 @@ class Settings(BaseSettings):
     # Supabase
     supabase_url: str
     supabase_service_role_key: str
+    supabase_jwt_audience: str = "authenticated"
+    supabase_jwt_issuer: str = ""
     app_enviorment:str
 
     # OpenRouter
@@ -29,9 +31,15 @@ class Settings(BaseSettings):
     # Chunking
     chunk_size: int = 512
     chunk_overlap: int = 64
+    
+    # OCR
+    enable_ocr: bool = True
+    ocr_min_text_chars: int = 80
+    tesseract_cmd: str = ""
 
     # Retrieval
-    retrieval_top_k: int = 5
+    retrieval_top_k: int = 8
+    retrival_k:int = 50
 
     # Memory
     memory_window_size: int = 10
@@ -61,6 +69,12 @@ class Settings(BaseSettings):
     @property
     def max_file_size_bytes(self) -> int:
         return self.max_file_size_mb * 1024 * 1024
+
+    @property
+    def expected_supabase_jwt_issuer(self) -> str:
+        if self.supabase_jwt_issuer:
+            return self.supabase_jwt_issuer.rstrip("/")
+        return f"{self.supabase_url.rstrip('/')}/auth/v1"
 
 
 @lru_cache()

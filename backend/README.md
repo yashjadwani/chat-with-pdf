@@ -1,165 +1,174 @@
-# Chat with PDF — Backend
+# PDF Chat Backend
 
-FastAPI backend deployed on Modal with ChromaDB, Supabase, and OpenRouter.
+FastAPI backend for the PDF Chat RAG application. It handles authenticated document upload, ingestion, OCR, hybrid retrieval, chat memory, LLM calls, and API logging.
 
 ## Stack
 
-| Layer | Choice |
-|---|---|
-| API Server | FastAPI on Modal |
-| Vector DB | ChromaDB (Modal Volume) |
+| Area | Tooling |
+| --- | --- |
+| API | FastAPI, Uvicorn, Pydantic |
+| Auth | Supabase Auth JWT |
 | Database | Supabase Postgres |
-| File Storage | Supabase Storage |
-| Embedding | intfloat/multilingual-e5-small |
-| LLM Primary | DeepSeek V4 Flash (OpenRouter) |
-| LLM Fallback | Llama 3.3 70B (OpenRouter) |
-| Observability | LangSmith |
+| Storage | Supabase Storage |
+| Vector store | ChromaDB persistent storage |
+| PDF processing | PyMuPDF |
+| OCR | Tesseract, pytesseract, Pillow |
+| Embeddings | `intfloat/multilingual-e5-small` |
+| Retrieval | Chroma dense retrieval + BM25 lexical retrieval + reranking |
+| LLM gateway | Opencode API |
+| Memory | Supabase chat tables + LangChain Core in-memory history helpers |
+| Observability | LangSmith, `api_logs` table |
+| Deployment | Modal |
 
----
+## RAG Flow
 
-## Local Development Setup
+1. Upload PDF to Supabase Storage.
+2. Create a document row in Supabase with `processing` status.
+3. Background ingestion downloads the file.
+4. PyMuPDF extracts selectable page text.
+5. OCR runs on low-text pages or pages with images.
+6. Text is chunked with `RecursiveCharacterTextSplitter`.
+7. Chunks are embedded with multilingual E5.
+8. Chroma stores raw chunk text, embeddings, and metadata.
+9. Document status changes to `ready`.
+10. Chat queries use hybrid retrieval:
+    - dense vector top 50 from Chroma
+    - BM25 top 50 from Chroma-stored raw chunks
+    - merge and deduplicate
+    - exact term boost
+    - metadata quality scoring
+    - final top chunks passed to the LLM
 
-### 1. Clone and install
+## Local Setup
 
 ```bash
 cd backend
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
+py -m venv .venv
+.venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### 2. Configure environment
+On macOS/Linux:
 
 ```bash
-cp .env.example .env
-# Fill in all values in .env
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 ```
 
-### 3. Set up Supabase
+## Environment
 
-- Create a new project at supabase.com
-- Run `schema.sql` in the Supabase SQL Editor
-- Create a storage bucket named `chat-with-pdf` (set to private)
-- Copy your project URL and service role key into `.env`
+Create `backend/.env` from `.env.example` and fill in your values.
 
-### 4. Run locally
+Important variables:
+
+```env
+SUPABASE_URL=
+SUPABASE_SERVICE_ROLE_KEY=
+SUPABASE_JWT_AUDIENCE=authenticated
+SUPABASE_JWT_ISSUER=
+OPENCODE_API_KEY=
+OPENCODE_BASE_URL=https://opencode.ai/zen/v1
+OPENCODE_MODEL=deepseek-v4-flash-free
+CHROMA_PERSIST_PATH=./chroma_data
+CHROMA_COLLECTION_NAME=chat_with_pdf
+ALLOWED_ORIGINS=http://localhost:5173
+ENABLE_OCR=true
+OCR_MIN_TEXT_CHARS=80
+TESSERACT_CMD=
+```
+
+For local Windows OCR, set `TESSERACT_CMD` if Tesseract is not on PATH:
+
+```env
+TESSERACT_CMD=C:\Users\yashj\AppData\Local\Programs\Tesseract-OCR\tesseract.exe
+```
+
+For Modal/Linux, `modal_app.py` installs `tesseract-ocr`, so the binary should be available on PATH.
+
+## Supabase Setup
+
+1. Create a Supabase project.
+2. Enable email/password auth.
+3. Run `backend/schema.sql` in the Supabase SQL Editor.
+4. Create a private storage bucket named `chat-with-pdf`.
+5. Add storage policies so users can access only their own folder.
+
+Storage path format:
+
+```text
+{user_id}/{document_id}/{filename}
+```
+
+## Run Locally
+
+From the `backend` folder:
 
 ```bash
 uvicorn app.main:app --reload --port 8000
 ```
 
-API docs available at: http://localhost:8000/docs
+Open:
 
----
-
-## Modal Deployment
-
-### 1. Install and authenticate Modal
-
-```bash
-pip install modal
-modal setup
+```text
+http://localhost:8000/docs
 ```
 
-### 2. Create Modal secrets
-
-In the Modal dashboard, create a secret named `chat-with-pdf-secrets` with these keys:
-
-```
-SUPABASE_URL
-SUPABASE_SERVICE_ROLE_KEY
-SUPABASE_JWT_SECRET
-OPENROUTER_API_KEY
-LANGCHAIN_API_KEY
-LANGCHAIN_TRACING_V2=true
-LANGCHAIN_PROJECT=chat-with-pdf
-ALLOWED_ORIGINS=https://your-vercel-domain.vercel.app
-APP_ENV=production
-```
-
-### 3. Deploy
-
-```bash
-modal deploy modal_app.py
-```
-
-Modal will output your endpoint URL. Add this to your frontend `.env.local` as `NEXT_PUBLIC_API_URL`.
-
-### 4. Verify deployment
-
-```bash
-curl https://your-modal-endpoint.modal.run/health
-```
-
----
-
-## API Endpoints
+## API Summary
 
 ### Documents
 
 | Method | Path | Description |
-|---|---|---|
-| POST | /documents/upload | Upload a PDF |
-| GET | /documents | List all user documents |
-| GET | /documents/{id} | Get a single document |
-| DELETE | /documents/{id} | Delete document and all data |
+| --- | --- | --- |
+| `POST` | `/documents/upload` | Upload a PDF and queue ingestion |
+| `GET` | `/documents` | List documents for the current user |
+| `GET` | `/documents/{document_id}` | Get one document |
+| `DELETE` | `/documents/{document_id}` | Delete document, file, chunks, and chats |
 
 ### Chat
 
 | Method | Path | Description |
-|---|---|---|
-| POST | /chat/query | Ask a question about a document |
-| GET | /chat/history/{document_id} | Get conversation history |
-| DELETE | /chat/history/{document_id} | Clear conversation history |
+| --- | --- | --- |
+| `POST` | `/chat/query` | Ask a document question |
+| `POST` | `/chat/stream` | Stream a document answer |
+| `GET` | `/chat/history/{document_id}` | Load saved chat history |
+| `DELETE` | `/chat/history/{document_id}` | Clear saved chat history |
 
 ### System
 
 | Method | Path | Description |
-|---|---|---|
-| GET | /health | Health check |
-| GET | /docs | Swagger UI |
+| --- | --- | --- |
+| `GET` | `/health` | Health check |
+| `GET` | `/docs` | Swagger UI |
 
----
+All protected endpoints require:
 
-## Auth
-
-All document and chat endpoints require a Bearer token from Supabase Auth.
-
-```
-Authorization: Bearer <supabase_jwt_token>
+```http
+Authorization: Bearer <supabase_access_token>
 ```
 
-The JWT is verified against your `SUPABASE_JWT_SECRET` on every request.
+## Modal Deployment
 
----
+`modal_app.py` builds the backend image from `requirements.txt`, installs Tesseract, pre-downloads the embedding model, and mounts a persistent Chroma volume.
 
-## Project Structure
+Deploy:
 
+```bash
+cd backend
+modal deploy modal_app.py
 ```
-backend/
-├── app/
-│   ├── main.py              # FastAPI app, CORS, routers
-│   ├── api/
-│   │   ├── deps.py          # Auth dependency injection
-│   │   └── routes/
-│   │       ├── documents.py # Upload, list, delete
-│   │       └── chat.py      # Query, history
-│   ├── core/
-│   │   ├── config.py        # Settings from env vars
-│   │   └── security.py      # JWT verification
-│   ├── services/
-│   │   ├── ingestion.py     # PDF → chunks → embeddings
-│   │   ├── retrieval.py     # ChromaDB query
-│   │   ├── llm.py           # OpenRouter calls + fallback
-│   │   └── memory.py        # Conversation memory
-│   ├── models/
-│   │   ├── document.py      # Pydantic schemas
-│   │   └── chat.py
-│   └── db/
-│       ├── supabase.py      # Supabase client + CRUD
-│       └── chroma.py        # ChromaDB client
-├── modal_app.py             # Modal deployment config
-├── schema.sql               # Supabase table + RLS setup
-├── requirements.txt
-└── .env.example
+
+Modal secret name expected:
+
+```text
+chat-with-pdf-secrets
 ```
+
+The secret should include your Supabase, Opencode, LangSmith, CORS, and environment variables.
+
+## Notes
+
+- BM25 cache is in memory and rebuilds from Chroma on cache miss.
+- Chroma stores both raw chunk text and embeddings.
+- OCR increases ingestion time, especially on image-heavy PDFs.
+- `api_logs` stores LLM call metadata, response content, raw provider responses, latency, and token usage when available.

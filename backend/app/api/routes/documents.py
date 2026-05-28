@@ -12,12 +12,38 @@ from app.models.document import (
     DocumentStatus,
 )
 from app.services.ingestion import ingest_document
+from app.services.retrieval import clear_bm25_cache
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
 router = APIRouter(prefix="/documents", tags=["documents"])
 
 ALLOWED_CONTENT_TYPES = {"application/pdf"}
+
+
+def queue_ingestion(
+    background_tasks: BackgroundTasks,
+    document_id: str,
+    user_id: str,
+    filename: str,
+) -> None:
+    if settings.app_env.lower() == "production":
+        import modal
+
+        modal.Function.from_name("chat-with-pdf", "run_ingestion").spawn(
+            document_id,
+            user_id,
+            filename,
+        )
+        logger.info(f"Spawned Modal ingestion job for document {document_id}")
+        return
+
+    background_tasks.add_task(
+        ingest_document,
+        document_id=document_id,
+        user_id=user_id,
+        filename=filename,
+    )
 
 
 @router.post("/upload", response_model=DocumentUploadResponse, status_code=status.HTTP_202_ACCEPTED)
@@ -97,8 +123,8 @@ async def upload_document(
         )
 
     # Trigger ingestion in background
-    background_tasks.add_task(
-        ingest_document,
+    queue_ingestion(
+        background_tasks=background_tasks,
         document_id=document_id,
         user_id=user_id,
         filename=filename,
@@ -174,6 +200,7 @@ async def delete_document(
     # Delete from ChromaDB
     try:
         chroma_store.delete_document_chunks(document_id=document_id)
+        clear_bm25_cache(document_id)
     except Exception as e:
         logger.error(f"ChromaDB delete failed for {document_id}: {str(e)}")
         errors.append("vector store")

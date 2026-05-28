@@ -38,6 +38,8 @@ def get_session_memory(
         recent_messages = chat_db.get_recent_messages(
             session_id=session_id,
             limit=message_limit,
+            user_id=user_id,
+            document_id=document_id,
         )
         for message in recent_messages:
             if message["role"] == "user":
@@ -170,7 +172,12 @@ async def summarize_if_needed(
     summary = data["choices"][0]["message"]["content"]
     _summaries[session_id] = summary
     memory.messages = tail_messages
-    ChatDB().update_summary(session_id=session_id, summary=summary)
+    ChatDB().update_summary(
+        session_id=session_id,
+        summary=summary,
+        user_id=user_id,
+        document_id=document_id,
+    )
     ApiLogDB().insert_log(
         purpose="memory_summary",
         model=settings.opencode_model,
@@ -226,7 +233,12 @@ async def get_history_string(
 
 def get_history_messages(session_id: str, user_id: str, document_id: str) -> list[dict]:
     """Return persisted chat history as a list of {role, content} dicts."""
-    messages = ChatDB().get_recent_messages(session_id=session_id, limit=200)
+    messages = ChatDB().get_recent_messages(
+        session_id=session_id,
+        limit=200,
+        user_id=user_id,
+        document_id=document_id,
+    )
     return [
         {
             "role": message["role"],
@@ -237,7 +249,7 @@ def get_history_messages(session_id: str, user_id: str, document_id: str) -> lis
     ]
 
 
-def clear_session(session_id: str) -> None:
+def clear_session(session_id: str, user_id: str, document_id: str) -> None:
     """Clear memory, summary, and persisted messages for a session."""
     removed = False
     if session_id in _sessions:
@@ -246,7 +258,7 @@ def clear_session(session_id: str) -> None:
     if session_id in _summaries:
         del _summaries[session_id]
         removed = True
-    ChatDB().clear_session_messages(session_id)
+    ChatDB().clear_session_messages(session_id, user_id, document_id)
     logger.info(f"Cleared memory session: {session_id}")
 
 

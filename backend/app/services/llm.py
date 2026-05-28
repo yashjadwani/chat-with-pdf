@@ -12,19 +12,14 @@ from app.services.retrieval import format_context
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
-SYSTEM_PROMPT = """You are a helpful document assistant for "Chat with PDF".
-
-Your job is to answer questions based ONLY on the document content provided below.
-
-Rules:
-- Answer only from the provided document context. Do not use outside knowledge.
-- Always cite the page number(s) where you found the information, like: (Page 3) or (Pages 3, 7).
-- If the answer is not found in the document, say clearly: "I couldn't find this information in the document."
-- Be concise and accurate.
-- If the question is a follow-up referring to previous conversation, use the conversation history to understand context.
-
-Document context will be provided in the user message."""
-
+SYSTEM_PROMPT = (
+        "You are a helpful assistant with access to a document and the conversation history. "
+        "Answer using the provided document context. Do not use outside knowledge. "
+        "If a question refers to something said earlier, use the conversation history. "
+        "If the answer isn't in either, say so. Cite page numbers when relevant."
+        "Always cite the page number(s) where you found the information, like: (Page 3) or (Pages 3, 7)."
+        "Be concise and accurate."
+    )
 
 def build_prompt(
     question: str,
@@ -54,13 +49,7 @@ def build_prompt(
             }
         )
 
-    user_message = f"""Document excerpts:
-{context}
-
----
-
-Question: {question}"""
-
+    user_message = f"Document context:\n{context}\n\nQuestion: {question}"
     messages.append({"role": "user", "content": user_message})
     return messages
 

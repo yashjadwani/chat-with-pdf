@@ -169,16 +169,30 @@ class ChatDB:
         )
         return created.data[0]
 
-    def update_summary(self, session_id: str, summary: str) -> None:
+    def update_summary(
+        self,
+        session_id: str,
+        summary: str,
+        user_id: str,
+        document_id: str,
+    ) -> None:
         self.client.table("chat_sessions").update(
             {"summary": summary, "updated_at": datetime.now(timezone.utc).isoformat()}
-        ).eq("session_id", session_id).execute()
+        ).eq("session_id", session_id).eq("user_id", user_id).eq("document_id", document_id).execute()
 
-    def get_recent_messages(self, session_id: str, limit: int) -> list[dict]:
+    def get_recent_messages(
+        self,
+        session_id: str,
+        limit: int,
+        user_id: str,
+        document_id: str,
+    ) -> list[dict]:
         response = (
             self.client.table("chat_messages")
             .select("*")
             .eq("session_id", session_id)
+            .eq("user_id", user_id)
+            .eq("document_id", document_id)
             .order("created_at", desc=True)
             .limit(limit)
             .execute()
@@ -212,11 +226,13 @@ class ChatDB:
         )
         return response.data[0]
 
-    def clear_session_messages(self, session_id: str) -> None:
-        self.client.table("chat_messages").delete().eq("session_id", session_id).execute()
+    def clear_session_messages(self, session_id: str, user_id: str, document_id: str) -> None:
+        self.client.table("chat_messages").delete().eq("session_id", session_id).eq(
+            "user_id", user_id
+        ).eq("document_id", document_id).execute()
         self.client.table("chat_sessions").update(
             {"summary": None, "updated_at": datetime.now(timezone.utc).isoformat()}
-        ).eq("session_id", session_id).execute()
+        ).eq("session_id", session_id).eq("user_id", user_id).eq("document_id", document_id).execute()
 
 
 class ApiLogDB:

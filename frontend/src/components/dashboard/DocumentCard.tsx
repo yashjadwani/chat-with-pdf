@@ -1,4 +1,4 @@
-import { FileText, MessageSquareText, Trash2 } from "lucide-react";
+import { FileText, Trash2 } from "lucide-react";
 import type { PdfDocument } from "../../types";
 import { Button } from "../ui/Button";
 
@@ -20,9 +20,27 @@ export function DocumentCard({
     hour: "2-digit",
     minute: "2-digit"
   }).format(new Date(document.uploaded_at));
+  const canOpen = document.status === "ready";
+
+  function openIfReady() {
+    if (canOpen) onOpen();
+  }
 
   return (
-    <article className={`document-card ${selected ? "selected" : ""}`}>
+    <article
+      className={`document-card ${selected ? "selected" : ""} ${canOpen ? "is-openable" : ""}`}
+      role={canOpen ? "button" : undefined}
+      tabIndex={canOpen ? 0 : undefined}
+      onClick={openIfReady}
+      onKeyDown={(event) => {
+        if (!canOpen) return;
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onOpen();
+        }
+      }}
+      aria-label={canOpen ? `Open ${displayName}` : undefined}
+    >
       <div className="doc-icon">
         <FileText size={21} />
       </div>
@@ -44,14 +62,13 @@ export function DocumentCard({
       <div className="doc-actions">
         <Button
           variant="quiet"
-          disabled={document.status !== "ready"}
-          onClick={onOpen}
-          title="Open chat"
-          aria-label={`Open ${displayName}`}
+          onClick={(event) => {
+            event.stopPropagation();
+            onDelete();
+          }}
+          title="Delete document"
+          aria-label={`Delete ${displayName}`}
         >
-          <MessageSquareText size={17} />
-        </Button>
-        <Button variant="quiet" onClick={onDelete} title="Delete document" aria-label={`Delete ${displayName}`}>
           <Trash2 size={17} />
         </Button>
       </div>

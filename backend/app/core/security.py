@@ -24,7 +24,8 @@ def verify_supabase_jwt(token: str) -> dict:
             token,
             signing_key.key,
             algorithms=["ES256"],
-            options={"verify_aud": False},
+            audience=settings.supabase_jwt_audience,
+            issuer=settings.expected_supabase_jwt_issuer,
         )
         return payload
 
@@ -35,17 +36,17 @@ def verify_supabase_jwt(token: str) -> dict:
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    except jwt.InvalidTokenError as e:
+    except jwt.InvalidTokenError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Invalid token: {str(e)}",
+            detail="Invalid token",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Token verification failed: {str(e)}",
+            detail="Token verification failed",
             headers={"WWW-Authenticate": "Bearer"},
         )
 

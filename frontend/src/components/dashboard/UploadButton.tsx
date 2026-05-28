@@ -1,4 +1,4 @@
-import { ChangeEvent, useRef, useState } from "react";
+import { ChangeEvent, useEffect, useRef, useState } from "react";
 import { Upload } from "lucide-react";
 import { uploadDocument } from "../../lib/api";
 import { Button } from "../ui/Button";
@@ -9,6 +9,12 @@ export function UploadButton({ onUploaded }: { onUploaded: () => void }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+
+  useEffect(() => {
+    if (!success) return;
+    const timeout = window.setTimeout(() => setSuccess(""), 3200);
+    return () => window.clearTimeout(timeout);
+  }, [success]);
 
   async function onFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];

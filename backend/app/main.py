@@ -12,6 +12,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 settings = get_settings()
+is_production = settings.app_env.lower() == "production"
 
 
 @asynccontextmanager
@@ -40,6 +41,9 @@ app = FastAPI(
     description="RAG-powered document Q&A API",
     version="1.0.0",
     lifespan=lifespan,
+    docs_url=None if is_production else "/docs",
+    redoc_url=None if is_production else "/redoc",
+    openapi_url=None if is_production else "/openapi.json",
 )
 
 # CORS
@@ -67,4 +71,7 @@ async def health():
 
 @app.get("/")
 async def root():
-    return {"message": "Chat with PDF API", "docs": "/docs"}
+    return {
+        "message": "Chat with PDF API",
+        "docs": None if is_production else "/docs",
+    }

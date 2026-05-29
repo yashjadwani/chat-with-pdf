@@ -72,8 +72,8 @@ export function SignupForm({
         </div>
       </div>
 
-      <label>
-        Name
+      <label className="field-group">
+        <span className="field-label">Name</span>
         <span className="input-shell">
           <UserRound size={17} />
           <input
@@ -85,8 +85,8 @@ export function SignupForm({
           />
         </span>
       </label>
-      <label>
-        Email
+      <label className="field-group">
+        <span className="field-label">Email</span>
         <span className="input-shell">
           <Mail size={17} />
           <input
@@ -100,8 +100,8 @@ export function SignupForm({
         {emailIsInvalid && <span className="field-error">Enter a valid email address.</span>}
       </label>
 
-      <label>
-        Password
+      <label className="field-group">
+        <span className="field-label">Password</span>
         <span className="input-shell">
           <LockKeyhole size={17} />
           <input
@@ -123,8 +123,8 @@ export function SignupForm({
         </span>
       </label>
 
-      <label>
-        Confirm password
+      <label className="field-group">
+        <span className="field-label">Confirm password</span>
         <span className="input-shell">
           <LockKeyhole size={17} />
           <input
@@ -147,14 +147,16 @@ export function SignupForm({
         {passwordsDoNotMatch && <span className="field-error">Passwords do not match.</span>}
       </label>
 
-      {message && <p className={success ? "form-note form-success" : "form-error"}>{message}</p>}
+      <div className="form-message-slot" aria-live="polite">
+        {message ? <p className={success ? "form-note form-success" : "form-error"}>{message}</p> : null}
+      </div>
 
       <Button disabled={loading || emailIsInvalid || passwordsDoNotMatch} type="submit">
         {loading ? "Creating" : "Create account"}
         <ArrowRight size={17} />
       </Button>
 
-      <button className="text-button" type="button" onClick={onModeChange}>
+      <button className="text-button auth-switch-link" type="button" onClick={onModeChange}>
         Already have an account?
       </button>
     </form>

@@ -44,8 +44,8 @@ export function LoginForm({ onModeChange }: { onModeChange: () => void }) {
         </div>
       </div>
 
-      <label>
-        Email
+      <label className="field-group">
+        <span className="field-label">Email</span>
         <span className="input-shell">
           <Mail size={17} />
           <input
@@ -59,8 +59,8 @@ export function LoginForm({ onModeChange }: { onModeChange: () => void }) {
         {emailIsInvalid && <span className="field-error">Enter a valid email address.</span>}
       </label>
 
-      <label>
-        Password
+      <label className="field-group">
+        <span className="field-label">Password</span>
         <span className="input-shell">
           <LockKeyhole size={17} />
           <input
@@ -81,14 +81,16 @@ export function LoginForm({ onModeChange }: { onModeChange: () => void }) {
         </span>
       </label>
 
-      {error && <p className="form-error">{error}</p>}
+      <div className="form-message-slot" aria-live="polite">
+        {error ? <p className="form-error">{error}</p> : null}
+      </div>
 
       <Button disabled={loading || emailIsInvalid} type="submit">
         {loading ? "Signing in" : "Sign in"}
         <ArrowRight size={17} />
       </Button>
 
-      <button className="text-button" type="button" onClick={onModeChange}>
+      <button className="text-button auth-switch-link" type="button" onClick={onModeChange}>
         Create a new account
       </button>
     </form>

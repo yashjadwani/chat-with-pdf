@@ -66,6 +66,8 @@ export function App() {
   const [pendingAutoSummaryId, setPendingAutoSummaryId] = useState<string | null>(null);
   const tokenRetryCount = useRef(0);
   const [documentPollStartedAt, setDocumentPollStartedAt] = useState<number | null>(null);
+  const themeToggleLabel = theme === "light" ? "Switch to dark mode" : "Switch to light mode";
+  const themeToggleText = theme === "light" ? "Dark mode" : "Light mode";
 
   const selectedDocument = useMemo(
     () => documents.find((document) => document.document_id === selectedId) ?? null,
@@ -209,23 +211,29 @@ export function App() {
         <section className="auth-art">
           <div className="auth-topbar">
             <BrandLogo />
-            <Button variant="quiet" onClick={toggleTheme} title="Toggle theme" aria-label="Toggle theme">
-              {theme === "light" ? <Moon size={17} /> : <Sun size={17} />}
-            </Button>
-          </div>
-          <div className="auth-copy">
-            <span className="eyebrow">Private document assistant</span>
-            <h1>Ask your documents simple questions.</h1>
-            <p>
-              Upload a document, ask in plain English, and get answers that point back
-              to the right pages.
-            </p>
-            <div className="auth-workflow" aria-label="How it works">
-              <span>Upload</span>
-              <span>Ask</span>
-              <span>Review</span>
-              <span>Check pages</span>
+            <div className="theme-toggle">
+              <Button variant="quiet" onClick={toggleTheme} title={themeToggleLabel} aria-label={themeToggleLabel}>
+                {theme === "light" ? <Moon size={17} /> : <Sun size={17} />}
+              </Button>
+              <span className="theme-toggle-text">{themeToggleText}</span>
             </div>
+          </div>
+          <div className="auth-story-grid">
+            <div className="auth-copy">
+              <span className="eyebrow">Private document assistant</span>
+              <h1>Ask your documents simple questions.</h1>
+              <p>
+                Upload a document, ask in plain English, and get answers that point back
+                to the right pages.
+              </p>
+              <div className="auth-workflow" aria-label="How it works">
+                <span>Upload</span>
+                <span>Ask</span>
+                <span>Review</span>
+                <span>Check pages</span>
+              </div>
+            </div>
+            <TrustPanel />
           </div>
           <PrivacyPreview />
           <CopyrightNotice variant="auth" />
@@ -276,7 +284,7 @@ export function App() {
         <div className="sidebar-top">
           <BrandLogo compact />
           <div className="top-actions">
-            <Button variant="quiet" onClick={toggleTheme} title="Toggle theme" aria-label="Toggle theme">
+            <Button variant="quiet" onClick={toggleTheme} title={themeToggleLabel} aria-label={themeToggleLabel}>
               {theme === "light" ? <Moon size={17} /> : <Sun size={17} />}
             </Button>
             <Button variant="quiet" onClick={() => supabase.auth.signOut()} title="Sign out" aria-label="Sign out">
@@ -405,7 +413,7 @@ function PrivacyPreview() {
     <aside className="privacy-preview" aria-label="Private document assistant preview">
       <div className="privacy-preview-header">
         <div>
-          <span className="eyebrow">Private by design</span>
+          <span className="eyebrow eyebrow-sentence">Private by design</span>
           <h2>Your documents stay out of the preview.</h2>
         </div>
         <span className="status-badge status-ready">Private space</span>
@@ -433,6 +441,32 @@ function PrivacyPreview() {
         <span />
         <span />
         <span />
+      </div>
+    </aside>
+  );
+}
+
+function TrustPanel() {
+  return (
+    <aside className="trust-panel" aria-label="Why teams use PDF Chat">
+      <div className="trust-card trust-card-proof">
+        <span className="eyebrow eyebrow-sentence">Built for focused review</span>
+        <h2>Keep answers tied to the page instead of guessing from memory.</h2>
+        <p>
+          Designed for contracts, reports, handbooks, and research notes that need quick,
+          traceable answers.
+        </p>
+      </div>
+
+      <div className="trust-metrics" aria-label="Product benefits">
+        <div className="trust-card">
+          <strong>Page-backed</strong>
+          <span>Every answer stays grounded in the uploaded file.</span>
+        </div>
+        <div className="trust-card">
+          <strong>Private workspace</strong>
+          <span>Your library stays organized in a calm, dedicated space.</span>
+        </div>
       </div>
     </aside>
   );

@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
+  ChevronDown,
   CheckCircle2,
   FileText,
   Gauge,
   Library,
   LogOut,
   MailCheck,
+  Menu,
   MessageSquareText,
   Moon,
   RefreshCw,
@@ -28,6 +30,9 @@ import { Spinner } from "./components/ui/Spinner";
 
 type Theme = "light" | "dark";
 const currentYear = new Date().getFullYear();
+const appPath = "/app";
+const loginPath = "/login";
+const verifyEmailPath = "/verify-email";
 
 function BrandLogo({ compact = false }: { compact?: boolean }) {
   return (
@@ -48,6 +53,7 @@ function BrandLogo({ compact = false }: { compact?: boolean }) {
 
 export function App() {
   const [session, setSession] = useState<Session | null>(null);
+  const [routePath, setRoutePath] = useState(() => window.location.pathname);
   const [authMode, setAuthMode] = useState<"login" | "signup">("login");
   const [pendingVerificationEmail, setPendingVerificationEmail] = useState("");
   const [theme, setTheme] = useState<Theme>(() => {
@@ -77,6 +83,8 @@ export function App() {
     getDisplayName(session) ??
     session?.user.email?.split("@")[0] ??
     "there";
+  const verificationEmail =
+    getEmailFromRoute() || pendingVerificationEmail || localStorage.getItem("chat-pdf-verification-email") || "";
 
   async function refreshDocuments(showSpinner = true) {
     if (!session) return;
@@ -138,15 +146,69 @@ export function App() {
     });
   }
 
+  function navigateTo(path: string, replace = false) {
+    const target = new URL(path, window.location.origin);
+    if (window.location.pathname === target.pathname && window.location.search === target.search) {
+      setRoutePath(target.pathname);
+      return;
+    }
+    window.history[replace ? "replaceState" : "pushState"](null, "", path);
+    setRoutePath(target.pathname);
+  }
+
+  function handleVerificationNeeded(email: string) {
+    localStorage.setItem("chat-pdf-verification-email", email);
+    setPendingVerificationEmail(email);
+    navigateTo(`${verifyEmailPath}?email=${encodeURIComponent(email)}`);
+  }
+
+  function scrollToFeatures() {
+    document.getElementById("landing-features")?.scrollIntoView({
+      behavior: "smooth",
+      block: "start"
+    });
+  }
+
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setSession(data.session));
+    const onPopState = () => setRoutePath(window.location.pathname);
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
+  useEffect(() => {
+    const authErrorMessage = getAuthErrorMessage();
+    if (authErrorMessage && routePath !== verifyEmailPath) {
+      navigateTo(verifyEmailPath, true);
+    }
+  }, [routePath]);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+      if (data.session && routePath !== appPath) {
+        navigateTo(appPath, true);
+      }
+      if (!data.session && routePath === appPath && !getAuthErrorMessage()) {
+        navigateTo(loginPath, true);
+      }
+      if (!data.session && getAuthErrorMessage()) {
+        navigateTo(verifyEmailPath, true);
+      }
+    });
     const { data } = supabase.auth.onAuthStateChange((_event, newSession) => {
       setSession(newSession);
+      if (newSession) {
+        localStorage.removeItem("chat-pdf-verification-email");
+        setPendingVerificationEmail("");
+        if (window.location.pathname !== appPath) navigateTo(appPath, true);
+      }
       if (!newSession) {
         setDocuments([]);
         setSelectedId(null);
         setDocsLoaded(false);
         setPendingAutoSummaryId(null);
+        if (window.location.pathname === appPath && !getAuthErrorMessage()) navigateTo(loginPath, true);
+        if (getAuthErrorMessage()) navigateTo(verifyEmailPath, true);
       }
     });
 
@@ -206,6 +268,31 @@ export function App() {
   }, [documents, pendingAutoSummaryId]);
 
   if (!session) {
+    if (routePath === verifyEmailPath) {
+      return (
+        <main className="auth-page verify-page" data-theme={theme}>
+          <section className="auth-art verify-art">
+            <div className="auth-topbar">
+              <BrandLogo />
+              <div className="theme-toggle">
+                <Button variant="quiet" onClick={toggleTheme} title={themeToggleLabel} aria-label={themeToggleLabel}>
+                  {theme === "light" ? <Moon size={17} /> : <Sun size={17} />}
+                </Button>
+                <span className="theme-toggle-text">{themeToggleText}</span>
+              </div>
+            </div>
+            <VerifyEmailPanel
+              initialEmail={verificationEmail}
+              onBackToLogin={() => {
+                setAuthMode("login");
+                navigateTo(loginPath);
+              }}
+            />
+          </section>
+        </main>
+      );
+    }
+
     return (
       <main className="auth-page" data-theme={theme}>
         <section className="auth-art">
@@ -235,6 +322,9 @@ export function App() {
             </div>
             <TrustPanel />
           </div>
+          <button className="landing-scroll-button" type="button" onClick={scrollToFeatures} aria-label="Scroll to features">
+            <ChevronDown size={18} />
+          </button>
           <PrivacyPreview />
           <CopyrightNotice variant="auth" />
         </section>
@@ -249,11 +339,14 @@ export function App() {
               }}
             />
           ) : authMode === "login" ? (
-            <LoginForm onModeChange={() => setAuthMode("signup")} />
+            <LoginForm
+              onModeChange={() => setAuthMode("signup")}
+              onVerificationNeeded={handleVerificationNeeded}
+            />
           ) : (
             <SignupForm
               onModeChange={() => setAuthMode("login")}
-              onVerificationNeeded={(email) => setPendingVerificationEmail(email)}
+              onVerificationNeeded={handleVerificationNeeded}
             />
           )}
         </section>
@@ -269,8 +362,9 @@ export function App() {
         onClick={() => setDocumentsDrawerOpen(true)}
         aria-label="Open document library"
       >
-        <Library size={18} />
-        Documents
+        <Menu className="mobile-menu-icon" size={19} />
+        <Library className="mobile-library-icon" size={18} />
+        <span>Documents</span>
       </button>
       {documentsDrawerOpen && (
         <button
@@ -403,6 +497,21 @@ function isTokenWarmupError(message: string) {
   return message.toLowerCase().includes("token is not yet valid");
 }
 
+function getAppRedirectUrl() {
+  return `${window.location.origin}${appPath}`;
+}
+
+function getEmailFromRoute() {
+  return new URLSearchParams(window.location.search).get("email")?.trim() ?? "";
+}
+
+function getAuthErrorMessage() {
+  const queryError = new URLSearchParams(window.location.search).get("error_description");
+  const hash = window.location.hash.startsWith("#") ? window.location.hash.slice(1) : window.location.hash;
+  const hashError = new URLSearchParams(hash).get("error_description");
+  return queryError || hashError || "";
+}
+
 function getDisplayName(session: Session | null) {
   const value = session?.user.user_metadata?.display_name;
   return typeof value === "string" && value.trim() ? value.trim() : null;
@@ -410,7 +519,7 @@ function getDisplayName(session: Session | null) {
 
 function PrivacyPreview() {
   return (
-    <aside className="privacy-preview" aria-label="Private document assistant preview">
+    <aside className="privacy-preview" id="landing-features" aria-label="Private document assistant preview">
       <div className="privacy-preview-header">
         <div>
           <span className="eyebrow eyebrow-sentence">Private by design</span>
@@ -503,7 +612,10 @@ function CheckEmailPanel({
     setMessage("");
     const { error } = await supabase.auth.resend({
       type: "signup",
-      email
+      email,
+      options: {
+        emailRedirectTo: getAppRedirectUrl()
+      }
     });
     setMessage(error ? error.message : "Verification email sent again.");
     setResending(false);
@@ -530,6 +642,88 @@ function CheckEmailPanel({
         {resending ? "Sending" : "Resend email"}
       </Button>
       <button className="text-button" type="button" onClick={onBackToLogin}>
+        Back to login
+      </button>
+    </section>
+  );
+}
+
+function VerifyEmailPanel({
+  initialEmail,
+  onBackToLogin
+}: {
+  initialEmail: string;
+  onBackToLogin: () => void;
+}) {
+  const [email, setEmail] = useState(initialEmail);
+  const [message, setMessage] = useState(getAuthErrorMessage() || "Please verify your email address to continue.");
+  const [success, setSuccess] = useState(false);
+  const [resending, setResending] = useState(false);
+
+  async function resendVerificationEmail() {
+    const trimmedEmail = email.trim();
+    setSuccess(false);
+
+    if (!trimmedEmail) {
+      setMessage("Enter the email address you used to create your account.");
+      return;
+    }
+
+    setResending(true);
+    setMessage("");
+    const { error } = await supabase.auth.resend({
+      type: "signup",
+      email: trimmedEmail,
+      options: {
+        emailRedirectTo: getAppRedirectUrl()
+      }
+    });
+
+    if (error) {
+      setMessage(error.message);
+      setSuccess(false);
+    } else {
+      localStorage.setItem("chat-pdf-verification-email", trimmedEmail);
+      setMessage("Verification email sent again. Check your inbox for the latest link.");
+      setSuccess(true);
+    }
+    setResending(false);
+  }
+
+  return (
+    <section className="auth-form verify-email-panel" aria-labelledby="verify-email-title">
+      <div className="mail-hero">
+        <MailCheck size={30} />
+      </div>
+      <div className="form-heading centered">
+        <div>
+          <h1 id="verify-email-title">Verify your email</h1>
+          <p>Please verify your email address to continue.</p>
+        </div>
+      </div>
+
+      <label className="field-group">
+        <span className="field-label">Email address</span>
+        <span className="input-shell">
+          <MailCheck size={17} />
+          <input
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            type="email"
+            autoComplete="email"
+            required
+          />
+        </span>
+      </label>
+
+      <div className="form-message-slot" aria-live="polite">
+        {message ? <p className={success ? "form-note form-success" : "form-error"}>{message}</p> : null}
+      </div>
+
+      <Button onClick={resendVerificationEmail} disabled={resending} type="button">
+        {resending ? "Sending" : "Resend verification email"}
+      </Button>
+      <button className="text-button auth-switch-link" type="button" onClick={onBackToLogin}>
         Back to login
       </button>
     </section>

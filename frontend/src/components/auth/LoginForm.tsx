@@ -5,7 +5,13 @@ import { Button } from "../ui/Button";
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export function LoginForm({ onModeChange }: { onModeChange: () => void }) {
+export function LoginForm({
+  onModeChange,
+  onVerificationNeeded
+}: {
+  onModeChange: () => void;
+  onVerificationNeeded: (email: string) => void;
+}) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -26,10 +32,10 @@ export function LoginForm({ onModeChange }: { onModeChange: () => void }) {
 
     const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
     if (authError) {
-      const message = authError.message.toLowerCase().includes("email not confirmed")
-        ? "Please verify your email before signing in."
-        : authError.message;
+      const emailNotConfirmed = authError.message.toLowerCase().includes("email not confirmed");
+      const message = emailNotConfirmed ? "Please verify your email before signing in." : authError.message;
       setError(message);
+      if (emailNotConfirmed) onVerificationNeeded(email.trim());
     }
     setLoading(false);
   }

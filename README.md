@@ -17,13 +17,18 @@ The app is built as a learning-focused MVP with a modern Vite frontend, FastAPI 
   - dense semantic search
   - BM25 keyword search
   - merge and dedupe
-  - exact term boosting
-  - metadata quality scoring
-  - final reranking
+  - acronym expansion with a custom glossary and FlashText
+  - BGE cross-encoder reranking
+- Generic analytical answers for comparison/ranking questions:
+  - retrieve
+  - extract structured facts
+  - compare and rank
+  - generate a grounded answer
+- Representative document summaries for summary/overview questions
 - Chat answers with page references
 - Saved chat history per user and document
 - Conversation summary memory for long chats
-- API logs for LLM calls, summary calls, response content, raw responses, and latency
+- API logs for chat answers, memory summaries, document summaries, comparison extraction, comparison answers, response content, raw responses, and latency
 - Modern light/dark frontend UI
 
 ## Project Structure
@@ -64,7 +69,7 @@ chat-with-pdf/
 | Vector DB | ChromaDB |
 | OCR | Tesseract, pytesseract, Pillow |
 | Embeddings | `intfloat/multilingual-e5-small` |
-| Retrieval | Dense vector search + BM25 + reranking |
+| Retrieval | Dense vector search + BM25 + BGE reranking |
 | LLM | Opencode API |
 | Deployment | Modal backend, Vercel-style frontend |
 
@@ -138,13 +143,27 @@ Upload PDF
 
 Question
   -> Supabase JWT verification
+  -> intent routing
+     -> normal Q&A
+     -> document summary
+     -> comparison/ranking analysis
   -> dense Chroma retrieval
   -> BM25 keyword retrieval
   -> merge/dedupe
-  -> rerank
+  -> BGE rerank
   -> LLM with final context
   -> answer + page references
   -> saved chat history + API log
+
+Summary questions
+  -> representative chunks sampled across the document
+  -> summary answer with page references
+
+Comparison/ranking questions
+  -> broader retrieval
+  -> structured fact extraction
+  -> Python compare/rank step
+  -> final grounded answer
 ```
 
 ## Deployment Notes
@@ -163,6 +182,10 @@ Implemented:
 - Document upload/list/delete
 - Ingestion with OCR
 - Hybrid retrieval
+- BGE cross-encoder reranking
+- Acronym expansion
+- Generic compare/rank analysis branch
+- Representative summary branch
 - Chat and saved history
 - LLM call logging
 - Modern frontend with dark mode
@@ -171,5 +194,4 @@ Planned or optional:
 
 - Persistent BM25 index or Postgres full-text search
 - More advanced OCR/image captioning for diagrams
-- Cross-encoder reranker
 - Admin analytics dashboard

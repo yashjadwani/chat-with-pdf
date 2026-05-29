@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Backgro
 from app.api.deps import get_current_user_id
 from app.core.config import get_settings
 from app.db.supabase import DocumentDB, StorageDB
-from app.db.chroma import ChromaStore
+from app.db.chroma import ChromaStore, reload_modal_volume_if_needed
 from app.models.document import (
     DocumentUploadResponse,
     DocumentListResponse,
@@ -27,15 +27,30 @@ def queue_ingestion(
     user_id: str,
     filename: str,
 ) -> None:
-    if settings.app_env.lower() == "production":
+    if settings.run_ingestion_on_modal:
         import modal
 
-        modal.Function.from_name("chat-with-pdf", "run_ingestion").spawn(
+        try:
+            function_call = modal.Function.from_name(
+                settings.modal_app_name,
+                settings.modal_ingestion_function_name,
+            ).spawn(
+                document_id,
+                user_id,
+                filename,
+            )
+        except Exception as exc:
+            logger.exception(f"Failed to spawn Modal ingestion for document {document_id}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to queue document ingestion.",
+            ) from exc
+
+        logger.info(
+            "Spawned Modal ingestion job for document %s with call id %s",
             document_id,
-            user_id,
-            filename,
+            getattr(function_call, "object_id", "unknown"),
         )
-        logger.info(f"Spawned Modal ingestion job for document {document_id}")
         return
 
     background_tasks.add_task(
@@ -199,6 +214,7 @@ async def delete_document(
 
     # Delete from ChromaDB
     try:
+        await reload_modal_volume_if_needed()
         chroma_store.delete_document_chunks(document_id=document_id)
         clear_bm25_cache(document_id)
     except Exception as e:

@@ -182,10 +182,15 @@ def ingest_document(document_id: str, user_id: str, filename: str) -> None:
     storage_db = StorageDB()
     chroma_store = ChromaStore()
 
-    storage_path = f"{user_id}/{document_id}/{filename}"
-
     try:
         logger.info(f"Starting ingestion for document {document_id}")
+        document = doc_db.get_document(document_id=document_id, user_id=user_id)
+        storage_path = (
+            document["storage_path"]
+            if document and document.get("storage_path")
+            else f"{user_id}/{document_id}/{filename}"
+        )
+        logger.info(f"Using storage path for ingestion: {storage_path}")
 
         # Step 1 — Download PDF
         pdf_bytes = storage_db.download_file(storage_path)
@@ -225,6 +230,7 @@ def ingest_document(document_id: str, user_id: str, filename: str) -> None:
             metadatas=metadatas,
             ids=ids,
         )
+        logger.info(f"Chroma collection count after ingest: {chroma_store.collection.count()}")
         from app.services.retrieval import clear_bm25_cache
         clear_bm25_cache(document_id)
 

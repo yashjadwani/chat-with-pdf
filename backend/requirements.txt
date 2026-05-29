@@ -22,6 +22,8 @@ langchain-text-splitters==1.1.1
 chromadb==0.5.23
 sentence-transformers==3.3.1
 rank-bm25==0.2.2
+nltk==3.9.1
+flashtext==2.7
 
 # HTTP client (OpenRouter calls)
 httpx==0.27.2
@@ -30,7 +32,7 @@ httpx==0.27.2
 supabase==2.10.0
 
 # LangSmith observability
-langsmith==0.1.147
+langsmith==0.7.14
 
 # Utilities
 python-dotenv==1.0.1

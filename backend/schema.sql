@@ -87,7 +87,15 @@ create table if not exists public.api_logs (
   user_id             uuid references auth.users(id) on delete set null,
   document_id          uuid references public.documents(document_id) on delete set null,
   session_id           uuid references public.chat_sessions(session_id) on delete set null,
-  purpose              text not null check (purpose in ('chat_answer', 'memory_summary')),
+  purpose              text not null check (
+                         purpose in (
+                           'chat_answer',
+                           'memory_summary',
+                           'comparison_extraction',
+                           'comparison_answer',
+                           'document_summary'
+                         )
+                       ),
   provider             text not null default 'opencode',
   model                text not null,
   status               text not null check (status in ('success', 'error')),
@@ -109,6 +117,21 @@ alter table public.api_logs
 
 alter table public.api_logs
   add column if not exists raw_response jsonb;
+
+alter table public.api_logs
+  drop constraint if exists api_logs_purpose_check;
+
+alter table public.api_logs
+  add constraint api_logs_purpose_check
+  check (
+    purpose in (
+      'chat_answer',
+      'memory_summary',
+      'comparison_extraction',
+      'comparison_answer',
+      'document_summary'
+    )
+  );
 
 create index if not exists api_logs_user_created_idx
   on public.api_logs(user_id, created_at desc);

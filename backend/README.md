@@ -14,7 +14,7 @@ FastAPI backend for the PDF Chat RAG application. It handles authenticated docum
 | PDF processing | PyMuPDF |
 | OCR | Tesseract, pytesseract, Pillow |
 | Embeddings | `intfloat/multilingual-e5-small` |
-| Retrieval | Chroma dense retrieval + BM25 lexical retrieval + reranking |
+| Retrieval | Chroma dense retrieval + BM25 lexical retrieval + BGE reranking |
 | LLM gateway | Opencode API |
 | Memory | Supabase chat tables + LangChain Core in-memory history helpers |
 | Observability | LangSmith, `api_logs` table |
@@ -35,9 +35,31 @@ FastAPI backend for the PDF Chat RAG application. It handles authenticated docum
     - dense vector top 50 from Chroma
     - BM25 top 50 from Chroma-stored raw chunks
     - merge and deduplicate
-    - exact term boost
-    - metadata quality scoring
-    - final top chunks passed to the LLM
+    - acronym expansion from custom glossary and document patterns
+    - BGE cross-encoder reranking
+    - final top chunks passed to the answer pipeline
+
+## Answer Modes
+
+`POST /chat/query` routes questions into one of three paths:
+
+| Mode | Trigger | Flow |
+| --- | --- | --- |
+| Normal Q&A | Default | retrieve -> rerank -> generate |
+| Document summary | summarize, summary, overview, key takeaways | representative chunks across the document -> generate summary |
+| Comparison/ranking | best, highest, lowest, most, compare, rank, better, worse, cost, time, score, etc. | retrieve broader context -> extract structured facts -> compare/rank in Python -> generate final answer |
+
+Streaming currently uses the normal retrieval/generation path.
+
+## Acronym Expansion
+
+`app/services/acronyms.py` expands query terms before retrieval using:
+
+- custom global glossary
+- FlashText
+- parenthetical document patterns like `Adjusted Rand Index (ARI)`
+
+The current glossary includes ARI, AUC, ROC, GMM, SVM, KNN, EM, and CV. The implementation intentionally avoids required `spacy`/`scispacy` dependencies so local Python 3.13 installs stay stable.
 
 ## Local Setup
 
@@ -72,6 +94,7 @@ OPENCODE_BASE_URL=https://opencode.ai/zen/v1
 OPENCODE_MODEL=deepseek-v4-flash-free
 CHROMA_PERSIST_PATH=./chroma_data
 CHROMA_COLLECTION_NAME=chat_with_pdf
+RERANKER_MODEL=BAAI/bge-reranker-base
 ALLOWED_ORIGINS=http://localhost:5173
 ENABLE_OCR=true
 OCR_MIN_TEXT_CHARS=80
@@ -149,7 +172,7 @@ Authorization: Bearer <supabase_access_token>
 
 ## Modal Deployment
 
-`modal_app.py` builds the backend image from `requirements.txt`, installs Tesseract, pre-downloads the embedding model, and mounts a persistent Chroma volume.
+`modal_app.py` builds the backend image from `requirements.txt`, installs Tesseract, pre-downloads the embedding and reranker models, downloads NLTK stopwords, and mounts a persistent Chroma volume.
 
 Deploy:
 
@@ -172,3 +195,4 @@ The secret should include your Supabase, Opencode, LangSmith, CORS, and environm
 - Chroma stores both raw chunk text and embeddings.
 - OCR increases ingestion time, especially on image-heavy PDFs.
 - `api_logs` stores LLM call metadata, response content, raw provider responses, latency, and token usage when available.
+- Logged purposes include `chat_answer`, `memory_summary`, `document_summary`, `comparison_extraction`, and `comparison_answer`.

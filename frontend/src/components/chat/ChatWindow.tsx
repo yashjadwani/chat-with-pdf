@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { AlertTriangle, MessageCircle, PanelRightClose, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { AlertTriangle, ArrowDown, BarChart3, FileSearch, MessageCircle, PanelRightClose, Sparkles, Trash2 } from "lucide-react";
 import type { ChatMessage, PdfDocument } from "../../types";
 import { askDocument, clearChatHistory, getChatHistory, makeMessage } from "../../lib/api";
 import { Button } from "../ui/Button";
@@ -18,7 +18,12 @@ export function ChatWindow({
   const [loadingAnswer, setLoadingAnswer] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [confirmingClear, setConfirmingClear] = useState(false);
+  const [pendingMode, setPendingMode] = useState<AnswerMode>("question");
+  const [showJumpButton, setShowJumpButton] = useState(false);
   const [error, setError] = useState("");
+  const messagesRef = useRef<HTMLDivElement | null>(null);
+  const bottomRef = useRef<HTMLDivElement | null>(null);
+  const suggestions = useMemo(() => getPromptSuggestions(document), [document]);
 
   useEffect(() => {
     let cancelled = false;
@@ -75,8 +80,10 @@ export function ChatWindow({
   }
 
   async function send(question: string) {
+    const mode = getAnswerMode(question);
     const userMessage = makeMessage("user", question);
     const assistantId = crypto.randomUUID();
+    setPendingMode(mode);
     setMessages((current) => [
       ...current,
       userMessage,
@@ -101,6 +108,21 @@ export function ChatWindow({
       setLoadingAnswer(false);
     }
   }
+
+  function scrollToBottom(behavior: ScrollBehavior = "smooth") {
+    bottomRef.current?.scrollIntoView({ behavior, block: "end" });
+  }
+
+  function onMessagesScroll() {
+    const element = messagesRef.current;
+    if (!element) return;
+    const distanceFromBottom = element.scrollHeight - element.scrollTop - element.clientHeight;
+    setShowJumpButton(distanceFromBottom > 180);
+  }
+
+  useEffect(() => {
+    scrollToBottom(messages.length <= 2 ? "auto" : "smooth");
+  }, [messages.length, loadingAnswer]);
 
   return (
     <section className="chat-panel">
@@ -129,7 +151,7 @@ export function ChatWindow({
         </div>
       </header>
 
-      <div className="messages">
+      <div className="messages" ref={messagesRef} onScroll={onMessagesScroll}>
         {loadingHistory ? (
           <div className="empty-state">
             <p>Loading conversation...</p>
@@ -137,18 +159,35 @@ export function ChatWindow({
           </div>
         ) : messages.length === 0 ? (
           <div className="prompt-suggestions">
-            <button disabled={loadingAnswer} onClick={() => send("Summarize this document with page references")}>
-              Summarize with page references
-            </button>
-            <button disabled={loadingAnswer} onClick={() => send("What are the key limitations mentioned?")}>
-              Find limitations
-            </button>
-            <button disabled={loadingAnswer} onClick={() => send("Give me practical examples from this document")}>
-              Extract examples
-            </button>
+            <div className="suggestion-heading">
+              <Sparkles size={17} />
+              <span>Try asking</span>
+            </div>
+            {suggestions.map((suggestion) => (
+              <button
+                disabled={loadingAnswer}
+                key={suggestion.text}
+                onClick={() => send(suggestion.text)}
+              >
+                <suggestion.icon size={17} />
+                <span>{suggestion.label}</span>
+              </button>
+            ))}
           </div>
         ) : (
-          messages.map((message) => <MessageBubble key={message.id} message={message} />)
+          messages.map((message) => (
+            <MessageBubble
+              key={message.id}
+              message={message}
+              loadingLabel={getLoadingLabel(pendingMode)}
+            />
+          ))
+        )}
+        <div ref={bottomRef} />
+        {showJumpButton && (
+          <button className="scroll-bottom-button" type="button" onClick={() => scrollToBottom()} aria-label="Scroll to latest message">
+            <ArrowDown size={17} />
+          </button>
         )}
       </div>
 
@@ -188,4 +227,47 @@ export function ChatWindow({
       )}
     </section>
   );
+}
+
+type AnswerMode = "question" | "summary" | "comparison";
+
+const summaryTerms = ["summarize", "summarise", "summary", "overview", "main points", "key takeaways", "takeaways"];
+const comparisonTerms = ["best", "highest", "lowest", "most", "least", "compare", "rank", "benefited", "improved", "better", "worse", "cost", "time", "score"];
+
+function getAnswerMode(question: string): AnswerMode {
+  const lower = question.toLowerCase();
+  if (summaryTerms.some((term) => lower.includes(term))) return "summary";
+  if (comparisonTerms.some((term) => lower.includes(term))) return "comparison";
+  return "question";
+}
+
+function getLoadingLabel(mode: AnswerMode) {
+  if (mode === "summary") return "Reading across the document";
+  if (mode === "comparison") return "Comparing evidence";
+  return "Finding the right pages";
+}
+
+function getPromptSuggestions(document: PdfDocument) {
+  if (document.status === "processing") {
+    return [
+      { label: "Check readiness", text: "Is this document ready to ask questions?", icon: FileSearch },
+      { label: "What can I ask?", text: "What kinds of questions can I ask once this document is ready?", icon: MessageCircle },
+      { label: "Summarize later", text: "Summarize this document when it is ready", icon: Sparkles }
+    ];
+  }
+
+  if (document.status === "failed") {
+    return [
+      { label: "Explain issue", text: "Why could this document not be prepared?", icon: AlertTriangle },
+      { label: "Next step", text: "What should I try next with this document?", icon: FileSearch },
+      { label: "Upload guidance", text: "What kind of PDF works best?", icon: MessageCircle }
+    ];
+  }
+
+  return [
+    { label: "Summarize", text: "Summarize this document with page references", icon: Sparkles },
+    { label: "Key points", text: "What are the key points in this document?", icon: FileSearch },
+    { label: "Compare", text: "Compare the main options or results in this document", icon: BarChart3 },
+    { label: "Limitations", text: "What limitations or risks are mentioned?", icon: MessageCircle }
+  ];
 }

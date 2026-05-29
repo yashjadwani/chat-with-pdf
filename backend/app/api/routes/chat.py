@@ -9,9 +9,15 @@ from langsmith import traceable
 
 from app.api.deps import get_current_user_id
 from app.core.config import get_settings
-from app.db.chroma import ChromaStore
+from app.db.chroma import ChromaStore, reload_modal_volume_if_needed
 from app.db.supabase import ApiLogDB, ChatDB, DocumentDB
 from app.models.chat import ChatHistoryResponse, ChatQueryRequest, ChatQueryResponse
+from app.services.analysis import (
+    extract_comparison_facts,
+    generate_comparison_answer,
+    is_comparison_question,
+    rank_comparison_facts,
+)
 from app.services.llm import generate_answer, generate_answer_stream
 from app.services.memory import (
     clear_session,
@@ -20,6 +26,7 @@ from app.services.memory import (
     save_exchange,
 )
 from app.services.retrieval import filter_by_query_terms, retrieve_chunks
+from app.services.summary import generate_summary_answer, get_summary_citations, is_summary_question
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -30,8 +37,9 @@ def _sse(event: str, data) -> str:
     return f"event: {event}\ndata: {json.dumps(data)}\n\n"
 
 
-def _get_ready_document(document_id: str, user_id: str) -> dict:
+async def _get_ready_document(document_id: str, user_id: str) -> dict:
     doc_db = DocumentDB()
+    await reload_modal_volume_if_needed()
     chroma_store = ChromaStore()
 
     document = doc_db.get_document(document_id=document_id, user_id=user_id)
@@ -51,6 +59,16 @@ def _get_ready_document(document_id: str, user_id: str) -> dict:
             detail="Document embeddings not found. Please re-upload the document.",
         )
 
+    return document
+
+
+def _get_user_document(document_id: str, user_id: str) -> dict:
+    document = DocumentDB().get_document(document_id=document_id, user_id=user_id)
+    if not document:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found.",
+        )
     return document
 
 
@@ -81,8 +99,20 @@ async def _run_rag_pipeline(
     Returns (answer, citations, model_used).
     """
     session_id = session["session_id"]
-    citations = retrieve_chunks(question=question, document_id=document_id, top_k=5)
-    citations = filter_by_query_terms(question=question, citations=citations)
+    summary_mode = is_summary_question(question)
+    analytical_mode = is_comparison_question(question)
+
+    if summary_mode:
+        citations = get_summary_citations(document_id=document_id, max_chunks=14)
+    else:
+        citations = retrieve_chunks(
+            question=question,
+            document_id=document_id,
+            top_k=12 if analytical_mode else 5,
+        )
+
+    if not analytical_mode and not summary_mode:
+        citations = filter_by_query_terms(question=question, citations=citations)
 
     conversation_history = await get_history_string(
         session_id=session_id,
@@ -91,14 +121,42 @@ async def _run_rag_pipeline(
         summary=session.get("summary"),
     )
 
-    answer, model_used = await generate_answer(
-        question=question,
-        citations=citations,
-        conversation_history=conversation_history,
-        user_id=user_id,
-        document_id=document_id,
-        session_id=session_id,
-    )
+    if summary_mode:
+        answer, model_used = await generate_summary_answer(
+            question=question,
+            citations=citations,
+            conversation_history=conversation_history,
+            user_id=user_id,
+            document_id=document_id,
+            session_id=session_id,
+        )
+    elif analytical_mode:
+        facts = await extract_comparison_facts(
+            question=question,
+            citations=citations,
+            user_id=user_id,
+            document_id=document_id,
+            session_id=session_id,
+        )
+        ranked_facts = rank_comparison_facts(question, facts)
+        answer, model_used = await generate_comparison_answer(
+            question=question,
+            citations=citations,
+            ranked_facts=ranked_facts,
+            conversation_history=conversation_history,
+            user_id=user_id,
+            document_id=document_id,
+            session_id=session_id,
+        )
+    else:
+        answer, model_used = await generate_answer(
+            question=question,
+            citations=citations,
+            conversation_history=conversation_history,
+            user_id=user_id,
+            document_id=document_id,
+            session_id=session_id,
+        )
 
     save_exchange(
         session_id=session_id,
@@ -118,7 +176,7 @@ async def query_document(
     user_id: str = Depends(get_current_user_id),
 ):
     """Query a document with a natural language question."""
-    _get_ready_document(document_id=request.document_id, user_id=user_id)
+    await _get_ready_document(document_id=request.document_id, user_id=user_id)
     question = _validate_question(request.question)
     session = ChatDB().get_or_create_default_session(
         user_id=user_id,
@@ -159,7 +217,7 @@ async def stream_document_query(
     user_id: str = Depends(get_current_user_id),
 ):
     """Stream an answer for a document query as server-sent events."""
-    _get_ready_document(document_id=request.document_id, user_id=user_id)
+    await _get_ready_document(document_id=request.document_id, user_id=user_id)
     question = _validate_question(request.question)
     session = ChatDB().get_or_create_default_session(
         user_id=user_id,
@@ -287,7 +345,7 @@ async def get_chat_history(
     user_id: str = Depends(get_current_user_id),
 ):
     """Get the persisted conversation history for a document session."""
-    _get_ready_document(document_id=document_id, user_id=user_id)
+    _get_user_document(document_id=document_id, user_id=user_id)
     session = ChatDB().get_or_create_default_session(
         user_id=user_id,
         document_id=document_id,
@@ -310,7 +368,7 @@ async def clear_chat_history(
     user_id: str = Depends(get_current_user_id),
 ):
     """Clear the persisted conversation memory for a document session."""
-    _get_ready_document(document_id=document_id, user_id=user_id)
+    await _get_ready_document(document_id=document_id, user_id=user_id)
     session = ChatDB().get_or_create_default_session(
         user_id=user_id,
         document_id=document_id,

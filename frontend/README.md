@@ -25,6 +25,8 @@ Vite + React frontend for PDF Chat. The UI lets users sign up, verify email, log
 - Latest documents overview
 - Chat UI with markdown/table rendering
 - Loading answer state
+- Summary requests are supported through the normal chat box
+- Comparison/ranking requests are supported through the normal chat box
 - Clear chat confirmation
 - Delete document confirmation
 - Toasts for upload/delete success
@@ -118,8 +120,11 @@ Important calls:
 - `POST /documents/upload`
 - `DELETE /documents/{document_id}`
 - `POST /chat/query`
+- `POST /chat/stream`
 - `GET /chat/history/{document_id}`
 - `DELETE /chat/history/{document_id}`
+
+`POST /chat/query` is the primary frontend path. The backend decides whether a question should use normal Q&A, document summary, or comparison/ranking analysis.
 
 ## Design Notes
 

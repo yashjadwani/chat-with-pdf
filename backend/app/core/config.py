@@ -29,8 +29,8 @@ class Settings(BaseSettings):
     chroma_collection_name: str = "chat_with_pdf"
 
     # Chunking
-    chunk_size: int = 512
-    chunk_overlap: int = 64
+    chunk_size: int = 900
+    chunk_overlap: int = 180
     
     # OCR
     enable_ocr: bool = True
@@ -38,8 +38,9 @@ class Settings(BaseSettings):
     tesseract_cmd: str = ""
 
     # Retrieval
-    retrieval_top_k: int = 8
+    retrieval_top_k: int = 5
     retrival_k:int = 50
+    reranker_model: str = "BAAI/bge-reranker-base"
 
     # Memory
     memory_window_size: int = 10
@@ -53,6 +54,10 @@ class Settings(BaseSettings):
 
     # App
     app_env: str = "development"
+    run_ingestion_on_modal: bool = False
+    modal_app_name: str = "chat-with-pdf"
+    modal_ingestion_function_name: str = "run_ingestion"
+    modal_chroma_volume_name: str = "chroma-data"
     allowed_origins: str = "http://localhost:5173"
     max_file_size_mb: int = 50
 

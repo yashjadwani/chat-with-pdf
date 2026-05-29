@@ -3,9 +3,35 @@ from chromadb.config import Settings as ChromaSettings
 from app.core.config import get_settings
 from functools import lru_cache
 import logging
+import time
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
+_last_volume_reload_at = 0.0
+
+
+async def reload_modal_volume_if_needed() -> None:
+    """
+    Modal Volume writes from the ingestion container are not automatically visible
+    inside an already-running API container until the volume is reloaded.
+    """
+    global _last_volume_reload_at
+    if not settings.run_ingestion_on_modal:
+        return
+
+    now = time.monotonic()
+    if now - _last_volume_reload_at < 2:
+        return
+
+    try:
+        import modal
+
+        await modal.Volume.from_name(settings.modal_chroma_volume_name).reload.aio()
+        get_chroma_client.cache_clear()
+        _last_volume_reload_at = now
+        logger.info("Reloaded Modal Chroma volume before reading vectors")
+    except Exception as exc:
+        logger.warning(f"Could not reload Modal Chroma volume: {str(exc)}")
 
 
 @lru_cache()

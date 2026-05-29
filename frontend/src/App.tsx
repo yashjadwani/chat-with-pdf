@@ -4,6 +4,7 @@ import {
   CheckCircle2,
   FileText,
   Gauge,
+  Library,
   LogOut,
   MailCheck,
   MessageSquareText,
@@ -26,6 +27,7 @@ import { Button } from "./components/ui/Button";
 import { Spinner } from "./components/ui/Spinner";
 
 type Theme = "light" | "dark";
+const currentYear = new Date().getFullYear();
 
 function BrandLogo({ compact = false }: { compact?: boolean }) {
   return (
@@ -56,11 +58,13 @@ export function App() {
   const [chatOpen, setChatOpen] = useState(true);
   const [pendingDelete, setPendingDelete] = useState<PdfDocument | null>(null);
   const [loadingDocs, setLoadingDocs] = useState(false);
+  const [documentsDrawerOpen, setDocumentsDrawerOpen] = useState(false);
   const [docsLoaded, setDocsLoaded] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
   const tokenRetryCount = useRef(0);
+  const [documentPollStartedAt, setDocumentPollStartedAt] = useState<number | null>(null);
 
   const selectedDocument = useMemo(
     () => documents.find((document) => document.document_id === selectedId) ?? null,
@@ -80,6 +84,9 @@ export function App() {
       tokenRetryCount.current = 0;
       setDocuments(result.documents);
       setDocsLoaded(true);
+      if (!result.documents.some((document) => document.status === "processing")) {
+        setDocumentPollStartedAt(null);
+      }
       if (!selectedId) {
         setSelectedId(result.documents.find((document) => document.status === "ready")?.document_id ?? null);
       }
@@ -150,13 +157,32 @@ export function App() {
 
   useEffect(() => {
     refreshDocuments(false);
+    if (!session) setDocumentPollStartedAt(null);
   }, [session]);
 
   useEffect(() => {
-    if (!documents.some((document) => document.status === "processing")) return;
-    const interval = window.setInterval(() => refreshDocuments(false), 3000);
+    if (!session) return;
+
+    const hasProcessingDocument = documents.some((document) => document.status === "processing");
+    const pollWindowActive =
+      documentPollStartedAt !== null && Date.now() - documentPollStartedAt < 5 * 60 * 1000;
+
+    if (!hasProcessingDocument && !pollWindowActive) return;
+
+    const interval = window.setInterval(() => {
+      const pollWindowExpired =
+        documentPollStartedAt !== null && Date.now() - documentPollStartedAt >= 5 * 60 * 1000;
+
+      if (!hasProcessingDocument && pollWindowExpired) {
+        setDocumentPollStartedAt(null);
+        return;
+      }
+
+      refreshDocuments(false);
+    }, 3000);
+
     return () => window.clearInterval(interval);
-  }, [documents, session]);
+  }, [documents, documentPollStartedAt, session]);
 
   if (!session) {
     return (
@@ -183,6 +209,7 @@ export function App() {
             </div>
           </div>
           <PrivacyPreview />
+          <CopyrightNotice variant="auth" />
         </section>
 
         <section className="auth-card">
@@ -209,7 +236,24 @@ export function App() {
 
   return (
     <main className="workspace" data-theme={theme}>
-      <aside className="sidebar">
+      <button
+        className="mobile-drawer-toggle"
+        type="button"
+        onClick={() => setDocumentsDrawerOpen(true)}
+        aria-label="Open document library"
+      >
+        <Library size={18} />
+        Documents
+      </button>
+      {documentsDrawerOpen && (
+        <button
+          className="mobile-drawer-backdrop"
+          type="button"
+          onClick={() => setDocumentsDrawerOpen(false)}
+          aria-label="Close document library"
+        />
+      )}
+      <aside className={`sidebar ${documentsDrawerOpen ? "is-open" : ""}`}>
         <div className="sidebar-top">
           <BrandLogo compact />
           <div className="top-actions">
@@ -246,6 +290,7 @@ export function App() {
         <UploadButton
           onUploaded={() => {
             setToast("Document uploaded. Preparing it now.");
+            setDocumentPollStartedAt(Date.now());
             refreshDocuments(false);
           }}
         />
@@ -260,10 +305,12 @@ export function App() {
             onOpen={(document) => {
               setSelectedId(document.document_id);
               setChatOpen(true);
+              setDocumentsDrawerOpen(false);
             }}
             onDelete={setPendingDelete}
           />
         )}
+        <CopyrightNotice variant="sidebar" />
       </aside>
 
       <section className="main-stage">
@@ -306,6 +353,14 @@ export function App() {
         </div>
       )}
     </main>
+  );
+}
+
+function CopyrightNotice({ variant }: { variant: "auth" | "sidebar" }) {
+  return (
+    <p className={`copyright-notice copyright-${variant}`}>
+      &copy; {currentYear} PDF Chat. All rights reserved.
+    </p>
   );
 }
 

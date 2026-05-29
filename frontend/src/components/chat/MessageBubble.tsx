@@ -111,14 +111,20 @@ function renderMessageContent(content: string) {
   return blocks;
 }
 
-export function MessageBubble({ message }: { message: ChatMessage }) {
+export function MessageBubble({
+  message,
+  loadingLabel = "Answer is loading"
+}: {
+  message: ChatMessage;
+  loadingLabel?: string;
+}) {
   return (
     <div className={`message-row ${message.role}`}>
       <div className="message-bubble">
         {message.role === "assistant" && !message.content ? (
           <div className="answer-loading" aria-live="polite">
             <span className="loading-dot" />
-            <span>Answer is loading</span>
+            <span>{loadingLabel}</span>
           </div>
         ) : (
           <div className="message-content">{renderMessageContent(message.content)}</div>

@@ -2,26 +2,40 @@ import logging
 import re
 from functools import lru_cache
 
+from nltk.corpus import stopwords
 from rank_bm25 import BM25Okapi
+from sentence_transformers import CrossEncoder
 
 from app.core.config import get_settings
 from app.db.chroma import ChromaStore
 from app.models.chat import Citation
+from app.services.acronyms import expand_query_with_acronyms
 from app.services.ingestion import embed_query
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
-STOPWORDS = {
-    "the", "a", "an", "and", "or", "to", "of", "in", "on", "for", "with",
-    "is", "are", "was", "were", "be", "by", "as", "it", "this", "that",
-    "what", "which", "how", "why", "when", "where", "about", "from", "into",
-}
+
+@lru_cache(maxsize=1)
+def get_reranker_model() -> CrossEncoder:
+    logger.info(f"Loading reranker model: {settings.reranker_model}")
+    return CrossEncoder(settings.reranker_model)
+
+
+@lru_cache(maxsize=1)
+def get_stopwords() -> set[str]:
+    try:
+        return set(stopwords.words("english"))
+    except LookupError as exc:
+        raise RuntimeError(
+            "NLTK stopwords corpus is missing. Run: py -m nltk.downloader stopwords"
+        ) from exc
 
 
 def tokenize(text: str) -> list[str]:
     terms = re.findall(r"[a-zA-Z0-9_]+", text.lower())
-    return [term for term in terms if len(term) > 2 and term not in STOPWORDS]
+    stop_words = get_stopwords()
+    return [term for term in terms if len(term) > 2 and term not in stop_words]
 
 
 def _metadata_value(metadata: dict, *keys, default=None):
@@ -135,56 +149,22 @@ def merge_candidates(dense_candidates: list[dict], bm25_candidates: list[dict]) 
     return list(merged.values())
 
 
-def exact_term_boost(question: str, text: str) -> float:
-    text_lower = text.lower()
-    boost = 0.0
-    for term in tokenize(question):
-        if term in text_lower:
-            boost += 0.15
-        if len(term) >= 8 and term in text_lower:
-            boost += 0.20
-    return boost
-
-
-def metadata_quality_score(metadata: dict) -> float:
-    score = 0.0
-    word_count = int(_metadata_value(metadata, "word_count", default=0) or 0)
-    text_chars = int(_metadata_value(metadata, "text_chars", default=0) or 0)
-
-    if word_count and word_count < 8:
-        score -= 0.60
-    if text_chars and text_chars < 40:
-        score -= 0.40
-    if metadata.get("is_active") is False:
-        score -= 999
-    if metadata.get("source_type") == "ocr":
-        score -= 0.05
-
-    return score
-
-
 def rerank_candidates(question: str, candidates: list[dict]) -> list[dict]:
-    max_bm25_score = max((candidate.get("bm25_score", 0.0) for candidate in candidates), default=0.0)
-    reranked = []
+    if not candidates:
+        return []
 
-    for candidate in candidates:
-        bm25_norm = candidate.get("bm25_score", 0.0) / max_bm25_score if max_bm25_score > 0 else 0.0
-        exact_boost = exact_term_boost(question, candidate["text"])
-        quality_score = metadata_quality_score(candidate["meta"])
-        final_score = (
-            candidate.get("dense_score", 0.0) * 0.55
-            + bm25_norm * 0.30
-            + exact_boost
-            + quality_score
-        )
+    reranker = get_reranker_model()
+    pairs = [(question, candidate["text"]) for candidate in candidates]
+    scores = reranker.predict(pairs)
 
-        reranked.append({
+    reranked = [
+        {
             **candidate,
-            "bm25_norm": bm25_norm,
-            "exact_boost": exact_boost,
-            "quality_score": quality_score,
-            "final_score": final_score,
-        })
+            "reranker_score": float(score),
+            "final_score": float(score),
+        }
+        for candidate, score in zip(candidates, scores)
+    ]
 
     return sorted(reranked, key=lambda item: item["final_score"], reverse=True)
 
@@ -233,11 +213,16 @@ def retrieve_chunks(
     """
     k = settings.retrival_k
     final_k = top_k or settings.retrieval_top_k
-    dense_candidates = dense_retrieve(question=question, document_id=document_id, top_k=k)
-    dense_candidates = filter_candidates_by_query_terms(question=question, candidates=dense_candidates)
-    bm25_candidates = bm25_retrieve(question=question, document_id=document_id, top_k=k)
+    _, document_chunks = _get_bm25_payload(document_id)
+    expanded_question = expand_query_with_acronyms(
+        query=question,
+        document_texts=[chunk["text"] for chunk in document_chunks],
+    )
+    dense_candidates = dense_retrieve(question=expanded_question, document_id=document_id, top_k=k)
+    dense_candidates = filter_candidates_by_query_terms(question=expanded_question, candidates=dense_candidates)
+    bm25_candidates = bm25_retrieve(question=expanded_question, document_id=document_id, top_k=k)
     merged = merge_candidates(dense_candidates, bm25_candidates)
-    reranked = rerank_candidates(question, merged)
+    reranked = rerank_candidates(expanded_question, merged)
     citations = [_candidate_to_citation(candidate) for candidate in reranked[:final_k]]
 
     if not citations:

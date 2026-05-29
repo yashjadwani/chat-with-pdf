@@ -1,17 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, ArrowDown, BarChart3, FileSearch, MessageCircle, PanelRightClose, Sparkles, Trash2 } from "lucide-react";
+import { AlertTriangle, ArrowDown, BarChart3, CheckCircle2, Clock3, FileSearch, MessageCircle, PanelRightClose, Sparkles, Trash2 } from "lucide-react";
 import type { ChatMessage, PdfDocument } from "../../types";
 import { askDocument, clearChatHistory, getChatHistory, makeMessage } from "../../lib/api";
 import { Button } from "../ui/Button";
-import { MessageBubble } from "./MessageBubble";
+import { MessageBubble, renderMessageContent } from "./MessageBubble";
 import { QueryInput } from "./QueryInput";
 
 export function ChatWindow({
   document,
-  onClose
+  onClose,
+  autoStartSummary = false,
+  onAutoSummaryStarted
 }: {
   document: PdfDocument;
   onClose: () => void;
+  autoStartSummary?: boolean;
+  onAutoSummaryStarted?: () => void;
 }) {
   const displayName = document.filename.replace(/\.pdf$/i, "");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -23,7 +27,10 @@ export function ChatWindow({
   const [error, setError] = useState("");
   const messagesRef = useRef<HTMLDivElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const autoSummaryStartedRef = useRef<string | null>(null);
   const suggestions = useMemo(() => getPromptSuggestions(document), [document]);
+  const overviewMessage = getOverviewMessage(messages);
+  const visibleMessages = overviewMessage ? messages.slice(2) : messages;
 
   useEffect(() => {
     let cancelled = false;
@@ -124,6 +131,26 @@ export function ChatWindow({
     scrollToBottom(messages.length <= 2 ? "auto" : "smooth");
   }, [messages.length, loadingAnswer]);
 
+  useEffect(() => {
+    if (!autoStartSummary || document.status !== "ready" || loadingHistory || loadingAnswer || messages.length > 0) {
+      return;
+    }
+
+    if (autoSummaryStartedRef.current === document.document_id) return;
+
+    autoSummaryStartedRef.current = document.document_id;
+    onAutoSummaryStarted?.();
+    void send(DEFAULT_SUMMARY_PROMPT);
+  }, [
+    autoStartSummary,
+    document.document_id,
+    document.status,
+    loadingAnswer,
+    loadingHistory,
+    messages.length,
+    onAutoSummaryStarted
+  ]);
+
   return (
     <section className="chat-panel">
       <header className="chat-header">
@@ -158,30 +185,33 @@ export function ChatWindow({
             <span>Opening your saved conversation.</span>
           </div>
         ) : messages.length === 0 ? (
-          <div className="prompt-suggestions">
-            <div className="suggestion-heading">
-              <Sparkles size={17} />
-              <span>Try asking</span>
-            </div>
-            {suggestions.map((suggestion) => (
-              <button
-                disabled={loadingAnswer}
-                key={suggestion.text}
-                onClick={() => send(suggestion.text)}
-              >
-                <suggestion.icon size={17} />
-                <span>{suggestion.label}</span>
-              </button>
-            ))}
-          </div>
+          <ChatEmptyState document={document} suggestions={suggestions} loadingAnswer={loadingAnswer} onSend={send} />
         ) : (
-          messages.map((message) => (
-            <MessageBubble
-              key={message.id}
-              message={message}
-              loadingLabel={getLoadingLabel(pendingMode)}
-            />
-          ))
+          <>
+            {overviewMessage && (
+              <DocumentOverviewCard
+                message={overviewMessage}
+                displayName={displayName}
+                loadingLabel={getLoadingLabel(pendingMode)}
+              />
+            )}
+            {visibleMessages.map((message) => (
+              <MessageBubble
+                key={message.id}
+                message={message}
+                loadingLabel={getLoadingLabel(pendingMode)}
+              />
+            ))}
+            {visibleMessages.length === 0 && overviewMessage?.content && (
+              <ChatEmptyState
+                document={document}
+                suggestions={suggestions}
+                loadingAnswer={loadingAnswer}
+                onSend={send}
+                compact
+              />
+            )}
+          </>
         )}
         <div ref={bottomRef} />
         {showJumpButton && (
@@ -231,6 +261,7 @@ export function ChatWindow({
 
 type AnswerMode = "question" | "summary" | "comparison";
 
+const DEFAULT_SUMMARY_PROMPT = "Summarize this document with page references";
 const summaryTerms = ["summarize", "summarise", "summary", "overview", "main points", "key takeaways", "takeaways"];
 const comparisonTerms = ["best", "highest", "lowest", "most", "least", "compare", "rank", "benefited", "improved", "better", "worse", "cost", "time", "score"];
 
@@ -245,6 +276,129 @@ function getLoadingLabel(mode: AnswerMode) {
   if (mode === "summary") return "Reading across the document";
   if (mode === "comparison") return "Comparing evidence";
   return "Finding the right pages";
+}
+
+function getOverviewMessage(messages: ChatMessage[]) {
+  const [firstMessage, secondMessage] = messages;
+  if (
+    firstMessage?.role === "user" &&
+    firstMessage.content.trim().toLowerCase() === DEFAULT_SUMMARY_PROMPT.toLowerCase() &&
+    secondMessage?.role === "assistant"
+  ) {
+    return secondMessage;
+  }
+
+  return null;
+}
+
+function DocumentOverviewCard({
+  message,
+  displayName,
+  loadingLabel
+}: {
+  message: ChatMessage;
+  displayName: string;
+  loadingLabel: string;
+}) {
+  const pageNumbers = Array.from(
+    new Set((message.citations ?? []).map((citation) => citation.page_number))
+  ).slice(0, 5);
+
+  return (
+    <article className="document-overview-card">
+      <div className="overview-card-head">
+        <span className="overview-card-icon" aria-hidden="true">
+          <Sparkles size={18} />
+        </span>
+        <div>
+          <span className="eyebrow">Document overview</span>
+          <h3>{displayName}</h3>
+        </div>
+      </div>
+
+      {message.content ? (
+        <div className="message-content overview-card-content">
+          {renderMessageContent(message.content)}
+        </div>
+      ) : (
+        <div className="answer-loading" aria-live="polite">
+          <span className="loading-dot" />
+          <span>{loadingLabel}</span>
+        </div>
+      )}
+
+      {pageNumbers.length > 0 && (
+        <div className="overview-page-list" aria-label="Referenced pages">
+          {pageNumbers.map((pageNumber) => (
+            <span key={pageNumber}>Page {pageNumber}</span>
+          ))}
+        </div>
+      )}
+    </article>
+  );
+}
+
+function ChatEmptyState({
+  document,
+  suggestions,
+  loadingAnswer,
+  onSend,
+  compact = false
+}: {
+  document: PdfDocument;
+  suggestions: ReturnType<typeof getPromptSuggestions>;
+  loadingAnswer: boolean;
+  onSend: (question: string) => void;
+  compact?: boolean;
+}) {
+  const Icon = document.status === "processing" ? Clock3 : document.status === "failed" ? AlertTriangle : CheckCircle2;
+  const title =
+    document.status === "processing"
+      ? "Your document is being prepared"
+      : document.status === "failed"
+        ? "This document needs attention"
+        : compact
+          ? "Ask a follow-up question"
+          : "Ready for questions";
+  const description =
+    document.status === "processing"
+      ? "The chat will unlock as soon as the document is ready."
+      : document.status === "failed"
+        ? document.error_message ?? "Try uploading the file again or choose another document."
+        : compact
+          ? "Use one of these prompts or ask anything about the document."
+          : "Start with a suggested prompt, or ask your own question below.";
+
+  return (
+    <div className={`chat-empty-state ${compact ? "compact" : ""}`}>
+      <div className="chat-empty-copy">
+        <span className="chat-empty-icon">
+          <Icon size={19} />
+        </span>
+        <div>
+          <h3>{title}</h3>
+          <p>{description}</p>
+        </div>
+      </div>
+
+      <div className="prompt-suggestions">
+        <div className="suggestion-heading">
+          <Sparkles size={17} />
+          <span>Try asking</span>
+        </div>
+        {suggestions.map((suggestion) => (
+          <button
+            disabled={loadingAnswer || document.status !== "ready"}
+            key={suggestion.text}
+            onClick={() => onSend(suggestion.text)}
+          >
+            <suggestion.icon size={17} />
+            <span>{suggestion.label}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function getPromptSuggestions(document: PdfDocument) {

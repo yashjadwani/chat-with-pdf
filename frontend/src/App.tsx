@@ -63,6 +63,7 @@ export function App() {
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
+  const [pendingAutoSummaryId, setPendingAutoSummaryId] = useState<string | null>(null);
   const tokenRetryCount = useRef(0);
   const [documentPollStartedAt, setDocumentPollStartedAt] = useState<number | null>(null);
 
@@ -143,6 +144,7 @@ export function App() {
         setDocuments([]);
         setSelectedId(null);
         setDocsLoaded(false);
+        setPendingAutoSummaryId(null);
       }
     });
 
@@ -183,6 +185,23 @@ export function App() {
 
     return () => window.clearInterval(interval);
   }, [documents, documentPollStartedAt, session]);
+
+  useEffect(() => {
+    if (!pendingAutoSummaryId) return;
+
+    const uploadedDocument = documents.find((document) => document.document_id === pendingAutoSummaryId);
+    if (!uploadedDocument) return;
+
+    if (uploadedDocument.status === "ready") {
+      setSelectedId(uploadedDocument.document_id);
+      setChatOpen(true);
+      setDocumentsDrawerOpen(false);
+    }
+
+    if (uploadedDocument.status === "failed") {
+      setPendingAutoSummaryId(null);
+    }
+  }, [documents, pendingAutoSummaryId]);
 
   if (!session) {
     return (
@@ -288,8 +307,11 @@ export function App() {
         </div>
 
         <UploadButton
-          onUploaded={() => {
+          onUploaded={(document) => {
             setToast("Document uploaded. Preparing it now.");
+            setPendingAutoSummaryId(document.document_id);
+            setSelectedId(document.document_id);
+            setChatOpen(true);
             setDocumentPollStartedAt(Date.now());
             refreshDocuments(false);
           }}
@@ -326,7 +348,12 @@ export function App() {
         </header>
 
         {chatOpen && selectedDocument ? (
-          <ChatWindow document={selectedDocument} onClose={() => setChatOpen(false)} />
+          <ChatWindow
+            document={selectedDocument}
+            onClose={() => setChatOpen(false)}
+            autoStartSummary={selectedDocument.document_id === pendingAutoSummaryId}
+            onAutoSummaryStarted={() => setPendingAutoSummaryId(null)}
+          />
         ) : (
           <ProjectOverview
             documents={documents}

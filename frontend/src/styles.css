@@ -932,6 +932,35 @@ textarea:focus {
   min-height: 42px;
 }
 
+.upload-guidance,
+.upload-file-feedback {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.upload-guidance svg,
+.upload-file-feedback svg {
+  flex: 0 0 auto;
+}
+
+.upload-file-feedback {
+  width: fit-content;
+  max-width: 100%;
+  padding: 7px 9px;
+  border: 1px solid color-mix(in srgb, var(--blue-strong) 20%, var(--line));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--control-bg) 74%, transparent);
+  color: var(--ink-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .inline-error,
 .chat-error,
 .form-error,
@@ -1500,6 +1529,61 @@ textarea:focus {
   max-width: 560px;
 }
 
+.chat-empty-state {
+  width: min(720px, 100%);
+  display: grid;
+  gap: 18px;
+  padding: 20px;
+  border: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
+  border-radius: 18px;
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--panel-strong) 92%, transparent), color-mix(in srgb, var(--paper) 72%, transparent)),
+    var(--panel-strong);
+  box-shadow: 0 18px 50px rgba(8, 7, 13, 0.1);
+  animation: messageIn 220ms ease both;
+}
+
+.chat-empty-state.compact {
+  margin-top: 12px;
+  padding: 16px;
+  background: color-mix(in srgb, var(--panel-strong) 84%, transparent);
+  box-shadow: none;
+}
+
+.chat-empty-copy {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.chat-empty-icon,
+.overview-card-icon {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--blue-strong) 24%, var(--line));
+  border-radius: 12px;
+  background:
+    radial-gradient(circle at 28% 20%, color-mix(in srgb, #fff 52%, transparent), transparent 42%),
+    color-mix(in srgb, var(--blue) 18%, var(--panel-strong));
+  color: var(--blue-strong);
+}
+
+.chat-empty-copy h3 {
+  margin: 0 0 5px;
+  color: var(--ink);
+  font-size: 1.05rem;
+}
+
+.chat-empty-copy p {
+  max-width: 520px;
+  margin: 0;
+  color: var(--ink-soft);
+  line-height: 1.6;
+}
+
 .suggestion-heading {
   display: inline-flex;
   align-items: center;
@@ -1592,6 +1676,58 @@ textarea:focus {
     linear-gradient(145deg, color-mix(in srgb, var(--panel-strong) 96%, transparent), color-mix(in srgb, var(--paper) 64%, transparent)),
     var(--panel-strong);
   border: 1px solid var(--line);
+}
+
+.document-overview-card {
+  width: min(860px, 100%);
+  display: grid;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding: 20px;
+  border: 1px solid color-mix(in srgb, var(--blue-strong) 26%, var(--line));
+  border-radius: 20px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--blue) 16%, transparent), transparent 46%),
+    linear-gradient(180deg, color-mix(in srgb, var(--panel-strong) 96%, transparent), color-mix(in srgb, var(--paper) 64%, transparent)),
+    var(--panel-strong);
+  box-shadow: 0 24px 64px rgba(8, 7, 13, 0.13);
+  animation: messageIn 240ms ease both;
+}
+
+.overview-card-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.overview-card-head h3 {
+  max-width: min(620px, 68vw);
+  margin: 3px 0 0;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: clamp(1.12rem, 1.5vw, 1.42rem);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.overview-card-content {
+  color: var(--ink-soft);
+}
+
+.overview-page-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.overview-page-list span {
+  padding: 6px 9px;
+  border: 1px solid color-mix(in srgb, var(--blue-strong) 22%, var(--line));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--control-bg) 72%, transparent);
+  color: var(--blue-strong);
+  font-size: 0.76rem;
+  font-weight: 850;
 }
 
 .message-content {
@@ -1726,6 +1862,10 @@ textarea:focus {
   margin: 0 0 5px;
   color: var(--ink);
   font-weight: 900;
+}
+
+.library-empty-state {
+  line-height: 1.5;
 }
 
 .modal-backdrop {

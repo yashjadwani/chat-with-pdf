@@ -14,9 +14,9 @@ export function DocumentList({
 }) {
   if (documents.length === 0) {
     return (
-      <div className="empty-state">
-        <p>No documents yet.</p>
-        <span>Upload a document to start asking questions.</span>
+      <div className="empty-state library-empty-state">
+        <p>Your library is ready.</p>
+        <span>Upload a document and PDF Chat will prepare an overview before your first question.</span>
       </div>
     );
   }

@@ -13,7 +13,7 @@ function renderInlineMarkdown(text: string): ReactNode[] {
   });
 }
 
-function renderMessageContent(content: string) {
+export function renderMessageContent(content: string) {
   const blocks: ReactNode[] = [];
   const lines = content.split("\n");
   let listItems: string[] = [];

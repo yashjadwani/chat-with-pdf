@@ -134,6 +134,26 @@ async def extract_comparison_facts(
             raw_response=data,
         )
         return facts
+    except httpx.HTTPStatusError as exc:
+        error_message = f"{exc.response.status_code} {exc.response.text}"
+        logger.error(f"Comparison fact extraction failed: {error_message}")
+        ApiLogDB().insert_log(
+            purpose="comparison_extraction",
+            model=settings.opencode_model,
+            status="error",
+            user_id=user_id,
+            document_id=document_id,
+            session_id=session_id,
+            user_prompt=question,
+            latency_ms=int((time.perf_counter() - started_at) * 1000),
+            request_metadata={"retrieved_chunks": len(citations)},
+            raw_response={
+                "status_code": exc.response.status_code,
+                "body": exc.response.text,
+            },
+            error_message=error_message,
+        )
+        return []
     except Exception as exc:
         logger.error(f"Comparison fact extraction failed: {str(exc)}")
         ApiLogDB().insert_log(
@@ -256,6 +276,26 @@ async def generate_comparison_answer(
             raw_response=data,
         )
         return answer, settings.opencode_model
+    except httpx.HTTPStatusError as exc:
+        error_message = f"{exc.response.status_code} {exc.response.text}"
+        logger.error(f"Comparison answer generation failed: {error_message}")
+        ApiLogDB().insert_log(
+            purpose="comparison_answer",
+            model=settings.opencode_model,
+            status="error",
+            user_id=user_id,
+            document_id=document_id,
+            session_id=session_id,
+            user_prompt=question,
+            latency_ms=int((time.perf_counter() - started_at) * 1000),
+            request_metadata={"retrieved_chunks": len(citations), "ranked_facts": len(ranked_facts)},
+            raw_response={
+                "status_code": exc.response.status_code,
+                "body": exc.response.text,
+            },
+            error_message=error_message,
+        )
+        raise RuntimeError("LLM call failed. Please try again later.") from exc
     except Exception as exc:
         logger.error(f"Comparison answer generation failed: {str(exc)}")
         ApiLogDB().insert_log(

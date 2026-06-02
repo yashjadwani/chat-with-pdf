@@ -173,15 +173,37 @@ async def _run_rag_pipeline(
             session_id=session_id,
         )
         ranked_facts = rank_comparison_facts(question, facts)
-        answer, model_used = await generate_comparison_answer(
-            question=question,
-            citations=citations,
-            ranked_facts=ranked_facts,
-            conversation_history=conversation_history,
-            user_id=user_id,
-            document_id=document_id,
-            session_id=session_id,
-        )
+        if ranked_facts:
+            try:
+                answer, model_used = await generate_comparison_answer(
+                    question=question,
+                    citations=citations,
+                    ranked_facts=ranked_facts,
+                    conversation_history=conversation_history,
+                    user_id=user_id,
+                    document_id=document_id,
+                    session_id=session_id,
+                )
+            except RuntimeError:
+                logger.warning("Structured comparison answer failed; falling back to normal RAG answer.")
+                answer, model_used = await generate_answer(
+                    question=question,
+                    citations=citations,
+                    conversation_history=conversation_history,
+                    user_id=user_id,
+                    document_id=document_id,
+                    session_id=session_id,
+                )
+        else:
+            logger.info("No structured comparison facts found; falling back to normal RAG answer.")
+            answer, model_used = await generate_answer(
+                question=question,
+                citations=citations,
+                conversation_history=conversation_history,
+                user_id=user_id,
+                document_id=document_id,
+                session_id=session_id,
+            )
     else:
         answer, model_used = await generate_answer(
             question=question,

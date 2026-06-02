@@ -356,16 +356,19 @@ export function App() {
 
   return (
     <main className="workspace" data-theme={theme}>
-      <button
-        className="mobile-drawer-toggle"
-        type="button"
-        onClick={() => setDocumentsDrawerOpen(true)}
-        aria-label="Open document library"
-      >
-        <Menu className="mobile-menu-icon" size={19} />
-        <Library className="mobile-library-icon" size={18} />
-        <span>Documents</span>
-      </button>
+      <header className="mobile-app-bar" aria-label="Mobile app navigation">
+        <button
+          className="mobile-drawer-toggle"
+          type="button"
+          onClick={() => setDocumentsDrawerOpen(true)}
+          aria-label="Open document library"
+        >
+          <Menu className="mobile-menu-icon" size={19} />
+          <Library className="mobile-library-icon" size={18} />
+          <span>Documents</span>
+        </button>
+        <BrandLogo compact />
+      </header>
       {documentsDrawerOpen && (
         <button
           className="mobile-drawer-backdrop"

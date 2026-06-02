@@ -25,7 +25,8 @@ from app.services.memory import (
     get_history_string,
     save_exchange,
 )
-from app.services.retrieval import filter_by_query_terms, retrieve_chunks
+from app.services.query_expansion import expand_query_for_retrieval, format_recent_history
+from app.services.retrieval import build_acronym_expanded_query, filter_by_query_terms, retrieve_chunks
 from app.services.summary import generate_summary_answer, get_summary_citations, is_summary_question
 
 logger = logging.getLogger(__name__)
@@ -87,6 +88,29 @@ def _validate_question(question: str) -> str:
     return cleaned
 
 
+async def _expand_query_for_session(
+    question: str,
+    document_id: str,
+    user_id: str,
+    session_id: str,
+):
+    acronym_expanded_query = build_acronym_expanded_query(question=question, document_id=document_id)
+    recent_messages = ChatDB().get_recent_messages(
+        session_id=session_id,
+        limit=6,
+        user_id=user_id,
+        document_id=document_id,
+    )
+    return await expand_query_for_retrieval(
+        original_query=question,
+        acronym_expanded_query=acronym_expanded_query,
+        recent_history=format_recent_history(recent_messages, max_turns=3),
+        user_id=user_id,
+        document_id=document_id,
+        session_id=session_id,
+    )
+
+
 @traceable(name="chat_query")
 async def _run_rag_pipeline(
     question: str,
@@ -105,14 +129,24 @@ async def _run_rag_pipeline(
     if summary_mode:
         citations = get_summary_citations(document_id=document_id, max_chunks=14)
     else:
+        expansion = await _expand_query_for_session(
+            question=question,
+            document_id=document_id,
+            user_id=user_id,
+            session_id=session_id,
+        )
         citations = retrieve_chunks(
             question=question,
             document_id=document_id,
             top_k=12 if analytical_mode else 5,
+            bm25_query=expansion.bm25_query,
+            dense_query=expansion.dense_query,
+            rerank_query=expansion.contextual_query,
         )
 
     if not analytical_mode and not summary_mode:
-        citations = filter_by_query_terms(question=question, citations=citations)
+        filter_query = expansion.contextual_query if not summary_mode else question
+        citations = filter_by_query_terms(question=filter_query, citations=citations)
 
     conversation_history = await get_history_string(
         session_id=session_id,
@@ -225,8 +259,21 @@ async def stream_document_query(
     )
     session_id = session["session_id"]
 
-    citations = retrieve_chunks(question=question, document_id=request.document_id, top_k=5)
-    citations = filter_by_query_terms(question=question, citations=citations)
+    expansion = await _expand_query_for_session(
+        question=question,
+        document_id=request.document_id,
+        user_id=user_id,
+        session_id=session_id,
+    )
+    citations = retrieve_chunks(
+        question=question,
+        document_id=request.document_id,
+        top_k=5,
+        bm25_query=expansion.bm25_query,
+        dense_query=expansion.dense_query,
+        rerank_query=expansion.contextual_query,
+    )
+    citations = filter_by_query_terms(question=expansion.contextual_query, citations=citations)
     conversation_history = await get_history_string(
         session_id=session_id,
         user_id=user_id,

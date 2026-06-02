@@ -93,7 +93,8 @@ create table if not exists public.api_logs (
                            'memory_summary',
                            'comparison_extraction',
                            'comparison_answer',
-                           'document_summary'
+                           'document_summary',
+                           'query_expansion'
                          )
                        ),
   provider             text not null default 'opencode',
@@ -129,7 +130,8 @@ alter table public.api_logs
       'memory_summary',
       'comparison_extraction',
       'comparison_answer',
-      'document_summary'
+      'document_summary',
+      'query_expansion'
     )
   );
 
@@ -139,9 +141,32 @@ create index if not exists api_logs_user_created_idx
 create index if not exists api_logs_purpose_created_idx
   on public.api_logs(purpose, created_at desc);
 
+create table if not exists public.request_logs (
+  request_log_id        uuid primary key default gen_random_uuid(),
+  request_id            text not null,
+  method                text not null,
+  path                  text not null,
+  status_code           integer,
+  client_to_backend_ms  integer,
+  server_duration_ms    integer,
+  user_agent            text,
+  origin                text,
+  created_at            timestamptz not null default now()
+);
+
+create index if not exists request_logs_request_id_idx
+  on public.request_logs(request_id);
+
+create index if not exists request_logs_created_idx
+  on public.request_logs(created_at desc);
+
+create index if not exists request_logs_path_created_idx
+  on public.request_logs(path, created_at desc);
+
 alter table public.chat_sessions enable row level security;
 alter table public.chat_messages enable row level security;
 alter table public.api_logs enable row level security;
+alter table public.request_logs enable row level security;
 
 create policy "Users can view own chat sessions"
   on public.chat_sessions for select
@@ -155,7 +180,7 @@ create policy "Users can delete own chat sessions"
   on public.chat_sessions for delete
   using (auth.uid() = user_id);
 
--- API logs are backend-only by default. Add a select policy later if you build an admin/user analytics UI.
+-- API and request logs are backend-only by default. Add a select policy later if you build an admin/user analytics UI.
 
 -- ============================================================
 -- Storage bucket

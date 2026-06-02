@@ -3,6 +3,37 @@ import type { ChatMessage, PdfDocument, Citation, PersistedChatMessage } from ".
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 
+function createRequestTiming() {
+  return {
+    requestId: crypto.randomUUID(),
+    clientSentAtMs: Date.now(),
+    startedAt: performance.now()
+  };
+}
+
+function timingHeaders(timing: ReturnType<typeof createRequestTiming>) {
+  return {
+    "X-Client-Request-Id": timing.requestId,
+    "X-Client-Sent-At-Ms": String(timing.clientSentAtMs)
+  };
+}
+
+function logApiTiming(path: string, timing: ReturnType<typeof createRequestTiming>, response: Response) {
+  const clientDurationMs = Math.round(performance.now() - timing.startedAt);
+  const serverDurationMs = response.headers.get("X-Server-Duration-Ms");
+  const clientToBackendMs = response.headers.get("X-Client-To-Backend-Ms");
+  const requestId = response.headers.get("X-Request-Id") ?? timing.requestId;
+
+  console.info("[api timing]", {
+    path,
+    requestId,
+    status: response.status,
+    clientDurationMs,
+    clientToBackendMs: clientToBackendMs ? Number(clientToBackendMs) : null,
+    serverDurationMs: serverDurationMs ? Number(serverDurationMs) : null
+  });
+}
+
 async function authHeaders() {
   const token = await getAccessToken();
   if (!token) {
@@ -13,14 +44,17 @@ async function authHeaders() {
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = await authHeaders();
+  const timing = createRequestTiming();
   const response = await fetch(`${API_URL}${path}`, {
     ...init,
     headers: {
       ...headers,
+      ...timingHeaders(timing),
       ...(init.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
       ...init.headers
     }
   });
+  logApiTiming(path, timing, response);
 
   if (!response.ok) {
     const message = await response.text();
@@ -95,16 +129,19 @@ export async function streamDocumentAnswer(
   }
 ) {
   const headers = await authHeaders();
+  const timing = createRequestTiming();
   const response = await fetch(`${API_URL}/chat/stream`, {
     method: "POST",
     headers: {
       ...headers,
+      ...timingHeaders(timing),
       "Content-Type": "application/json"
     },
     body: JSON.stringify({ document_id: documentId, question })
   });
 
   if (!response.ok || !response.body) {
+    logApiTiming("/chat/stream", timing, response);
     throw new Error(await response.text());
   }
 
@@ -132,6 +169,7 @@ export async function streamDocumentAnswer(
       if (eventName === "error") throw new Error(parsed);
     }
   }
+  logApiTiming("/chat/stream", timing, response);
 }
 
 export function makeMessage(role: ChatMessage["role"], content: string): ChatMessage {

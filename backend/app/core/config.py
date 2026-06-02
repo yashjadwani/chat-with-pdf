@@ -41,6 +41,15 @@ class Settings(BaseSettings):
     retrieval_top_k: int = 5
     retrival_k:int = 50
     reranker_model: str = "BAAI/bge-reranker-base"
+    retrieval_rrf_k: int = 60
+    retrieval_rerank_k: int = 60
+    retrieval_neighbor_window: int = 1
+    retrieval_semantic_cache_enabled: bool = True
+    retrieval_semantic_cache_threshold: float = 0.94
+    retrieval_semantic_cache_max_entries: int = 256
+    query_expansion_enabled: bool = True
+    query_expansion_timeout_seconds: float = 0.8
+    query_expansion_max_tokens: int = 300
 
     # Memory
     memory_window_size: int = 10

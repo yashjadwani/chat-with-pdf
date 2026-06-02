@@ -979,7 +979,8 @@ textarea:focus {
 }
 
 .mobile-drawer-toggle,
-.mobile-drawer-backdrop {
+.mobile-drawer-backdrop,
+.mobile-app-bar {
   display: none;
 }
 
@@ -2223,19 +2224,36 @@ textarea:focus {
     grid-template-columns: 1fr;
   }
 
+  .mobile-app-bar {
+    position: sticky;
+    top: 0;
+    z-index: 22;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--line);
+    background: color-mix(in srgb, var(--panel-bg) 92%, transparent);
+    backdrop-filter: blur(14px);
+  }
+
+  .mobile-app-bar .brand-mark.compact {
+    border-radius: 999px;
+    padding-right: 14px;
+  }
+
   .mobile-drawer-toggle {
-    position: fixed;
-    top: 12px;
-    left: 12px;
-    z-index: 20;
+    position: static;
     width: 44px;
+    height: 44px;
     min-height: 44px;
     display: inline-flex;
+    flex: 0 0 44px;
     align-items: center;
     justify-content: center;
     gap: 0;
     border: 1px solid var(--line);
-    border-radius: 12px;
+    border-radius: 999px;
     padding: 0;
     background: var(--panel-strong);
     color: var(--ink);
@@ -2284,7 +2302,7 @@ textarea:focus {
   .main-stage {
     height: auto;
     min-height: 70vh;
-    padding-top: 60px;
+    padding-top: 18px;
   }
 
   .overview-grid,

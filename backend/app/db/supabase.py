@@ -282,3 +282,35 @@ class ApiLogDB:
             ).execute()
         except Exception as exc:
             logger.warning(f"Failed to write API log: {str(exc)}")
+
+
+class RequestLogDB:
+    def __init__(self):
+        self.client = get_supabase_client()
+
+    def insert_log(
+        self,
+        request_id: str,
+        method: str,
+        path: str,
+        status_code: int | None = None,
+        client_to_backend_ms: int | None = None,
+        server_duration_ms: int | None = None,
+        user_agent: str | None = None,
+        origin: str | None = None,
+    ) -> None:
+        try:
+            self.client.table("request_logs").insert(
+                {
+                    "request_id": request_id,
+                    "method": method,
+                    "path": path,
+                    "status_code": status_code,
+                    "client_to_backend_ms": client_to_backend_ms,
+                    "server_duration_ms": server_duration_ms,
+                    "user_agent": user_agent,
+                    "origin": origin,
+                }
+            ).execute()
+        except Exception as exc:
+            logger.warning(f"Failed to write request log: {str(exc)}")

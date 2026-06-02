@@ -14,7 +14,7 @@ FastAPI backend for the PDF Chat RAG application. It handles authenticated docum
 | PDF processing | PyMuPDF |
 | OCR | Tesseract, pytesseract, Pillow |
 | Embeddings | `intfloat/multilingual-e5-small` |
-| Retrieval | Chroma dense retrieval + BM25 lexical retrieval + BGE reranking |
+| Retrieval | Chroma dense retrieval + BM25 lexical retrieval + RRF fusion + neighbor expansion + BGE reranking |
 | LLM gateway | Opencode API |
 | Memory | Supabase chat tables + LangChain Core in-memory history helpers |
 | Observability | LangSmith, `api_logs` table |
@@ -34,9 +34,12 @@ FastAPI backend for the PDF Chat RAG application. It handles authenticated docum
 10. Chat queries use hybrid retrieval:
     - dense vector top 50 from Chroma
     - BM25 top 50 from Chroma-stored raw chunks
-    - merge and deduplicate
     - acronym expansion from custom glossary and document patterns
-    - BGE cross-encoder reranking
+    - lightweight LLM query expansion for chat context, BM25 synonyms, and dense step-back wording
+    - reciprocal rank fusion (RRF) merge and deduplication
+    - BGE cross-encoder reranking on the fused pool
+    - neighbor chunk expansion around the strongest reranked chunks
+    - document-scoped semantic retrieval cache for similar repeated questions
     - final top chunks passed to the answer pipeline
 
 ## Answer Modes
@@ -95,6 +98,15 @@ OPENCODE_MODEL=deepseek-v4-flash-free
 CHROMA_PERSIST_PATH=./chroma_data
 CHROMA_COLLECTION_NAME=chat_with_pdf
 RERANKER_MODEL=BAAI/bge-reranker-base
+RETRIEVAL_RRF_K=60
+RETRIEVAL_RERANK_K=60
+RETRIEVAL_NEIGHBOR_WINDOW=1
+RETRIEVAL_SEMANTIC_CACHE_ENABLED=true
+RETRIEVAL_SEMANTIC_CACHE_THRESHOLD=0.94
+RETRIEVAL_SEMANTIC_CACHE_MAX_ENTRIES=256
+QUERY_EXPANSION_ENABLED=true
+QUERY_EXPANSION_TIMEOUT_SECONDS=0.8
+QUERY_EXPANSION_MAX_TOKENS=300
 ALLOWED_ORIGINS=http://localhost:5173
 ENABLE_OCR=true
 OCR_MIN_TEXT_CHARS=80
@@ -191,7 +203,7 @@ The secret should include your Supabase, Opencode, LangSmith, CORS, and environm
 
 ## Notes
 
-- BM25 cache is in memory and rebuilds from Chroma on cache miss.
+- BM25 and semantic retrieval caches are in memory and rebuild from Chroma/model retrieval on cache miss.
 - Chroma stores both raw chunk text and embeddings.
 - OCR increases ingestion time, especially on image-heavy PDFs.
 - `api_logs` stores LLM call metadata, response content, raw provider responses, latency, and token usage when available.

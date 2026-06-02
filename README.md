@@ -1,35 +1,191 @@
 # PDF Chat
 
-PDF Chat is a full-stack RAG application for uploading PDFs, asking questions in plain English, and getting answers grounded in the uploaded document.
+PDF Chat is a full-stack RAG application for uploading PDFs, asking questions in plain English, and getting answers grounded in the uploaded document with page references.
 
-The app is built as a learning-focused MVP with a modern Vite frontend, FastAPI backend, Supabase Auth/Storage/Postgres, ChromaDB, OCR support, hybrid retrieval, chat memory, and LLM logging.
+![PDF Chat architecture](docs/project-architecture.svg)
 
-## Features
+## What It Does
 
-- Supabase email/password auth
-- Portfolio-ready email verification screen
-- Document upload and processing status
-- Private Supabase Storage bucket
-- PDF text extraction with PyMuPDF
-- OCR fallback for scanned or image-heavy pages
-- ChromaDB vector storage with raw chunks and embeddings
-- Hybrid retrieval:
-  - dense semantic search
-  - BM25 keyword search
-  - merge and dedupe
-  - acronym expansion with a custom glossary and FlashText
-  - BGE cross-encoder reranking
-- Generic analytical answers for comparison/ranking questions:
-  - retrieve
-  - extract structured facts
-  - compare and rank
-  - generate a grounded answer
-- Representative document summaries for summary/overview questions
-- Chat answers with page references
-- Saved chat history per user and document
-- Conversation summary memory for long chats
-- API logs for chat answers, memory summaries, document summaries, comparison extraction, comparison answers, response content, raw responses, and latency
-- Modern light/dark frontend UI
+- Authenticates users with Supabase email/password auth.
+- Uploads PDFs to a private Supabase Storage bucket.
+- Extracts selectable PDF text with PyMuPDF.
+- Runs OCR with Tesseract on low-text or image-heavy pages.
+- Chunks pages, embeds chunks with `intfloat/multilingual-e5-small`, and stores raw text + embeddings + metadata in ChromaDB.
+- Answers questions with hybrid retrieval, query expansion, reranking, neighbor chunk expansion, memory, and citation-aware LLM prompts.
+- Saves chat history per user/document and logs LLM calls, query expansion calls, request timings, and latency metadata.
+
+## Stack
+
+| Layer | Tech |
+| --- | --- |
+| Frontend | Vite, React, TypeScript, Supabase JS, Lucide icons |
+| Backend | FastAPI, Pydantic, Uvicorn |
+| Auth | Supabase Auth |
+| Database | Supabase Postgres |
+| Storage | Supabase Storage |
+| Vector store | ChromaDB persistent storage |
+| PDF/OCR | PyMuPDF, Tesseract, pytesseract, Pillow |
+| Embeddings | `intfloat/multilingual-e5-small` |
+| Retrieval | Chroma dense search, BM25, RRF, BGE reranking, neighbor expansion |
+| LLM | Opencode API |
+| Deployment | Modal backend, Vercel-style frontend |
+
+## Current Pipeline
+
+### Ingestion
+
+```text
+PDF upload
+-> Supabase Storage
+-> documents row: processing
+-> PyMuPDF page text extraction
+-> OCR fallback when page text is low or image-heavy
+-> RecursiveCharacterTextSplitter
+-> E5 embeddings with "passage:" prefix
+-> Chroma stores raw chunk text, embeddings, metadata, ids
+-> documents row: ready
+```
+
+Important detail: embeddings are never converted back into text. Chroma stores the original chunk text alongside the vector, then returns the stored text after vector search.
+
+### Chat Query Call Trace
+
+```text
+POST /chat/query
+-> Supabase JWT validation
+-> document ownership/status/embedding checks
+-> question validation
+-> chat session load/create
+-> mode routing
+   -> summary
+   -> normal Q&A
+   -> comparison/ranking
+```
+
+Normal and comparison queries:
+
+```text
+question
+-> acronym expansion
+-> recent chat history lookup
+-> LLM query expansion
+   -> contextual_query
+   -> bm25_query
+   -> dense_query
+-> semantic retrieval cache lookup
+-> dense Chroma retrieval using dense_query
+-> BM25 lexical retrieval using bm25_query
+-> RRF fusion and dedupe
+-> BGE rerank #1 using contextual_query
+-> neighbor chunk expansion
+-> BGE rerank #2
+-> final citations
+-> optional query-term citation filter
+-> LLM answer generation
+-> save chat messages
+-> write logs
+```
+
+Summary queries skip normal retrieval and use representative chunks across the document.
+
+Comparison/ranking queries retrieve more context, extract structured facts, rank in Python, then generate the final grounded answer.
+
+## Query Expansion
+
+The app has two expansion layers:
+
+- Deterministic acronym expansion from a global glossary and document patterns like `Long Form (ABC)`.
+- Lightweight LLM query expansion for non-summary chat queries.
+
+The LLM expansion is instructed only to rewrite search intent:
+
+```text
+Do not answer the user's question.
+Do not invent facts, dates, names, clauses, obligations, amounts, page numbers, or conclusions.
+```
+
+It returns JSON:
+
+```json
+{
+  "contextual_query": "Query with references resolved from recent chat history.",
+  "bm25_query": "Keyword-rich query for exact lexical retrieval.",
+  "dense_query": "Broader conceptual query for vector retrieval."
+}
+```
+
+If expansion fails, times out, or returns invalid JSON, retrieval falls back to the acronym-expanded query.
+
+## Retrieval and Caching
+
+- Dense retrieval embeds the `dense_query` with the E5 `query:` prefix and searches Chroma.
+- BM25 retrieves lexical matches from Chroma-stored raw chunks.
+- BM25 payloads are cached in memory with `lru_cache`.
+- RRF combines dense and BM25 rankings without comparing incompatible raw scores.
+- BGE reranking scores `(query, chunk_text)` pairs.
+- Neighbor expansion adds adjacent chunks around the strongest reranked chunks.
+- A second BGE rerank decides whether those neighbor chunks belong in final citations.
+- Semantic retrieval cache stores document-scoped query embeddings and final citations in memory.
+
+Semantic cache scope:
+
+```text
+document_id + final_top_k + query_embedding similarity
+```
+
+It does not cache final LLM answers.
+
+## Memory
+
+Memory is configured in two layers:
+
+- Persistent memory in Supabase `chat_sessions` and `chat_messages`.
+- In-process memory through LangChain `InMemoryChatMessageHistory`.
+
+When chat history grows beyond the configured threshold, older turns are summarized and recent turns are kept as the live tail. Query expansion uses the last 3 turns directly so it can resolve follow-up wording before retrieval.
+
+## Observability
+
+- `api_logs` stores LLM/provider calls: chat answers, query expansion, memory summaries, document summaries, comparison extraction, and comparison answers.
+- `request_logs` stores HTTP request timings: request id, method, path, status, client-to-backend duration, and backend server duration.
+- The frontend also logs request timing in the browser console with the same request id.
+- The backend warms the BGE reranker in the background on startup so the first user query is less likely to pay the model load cost.
+
+## Local Development
+
+Backend:
+
+```bash
+cd backend
+py -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8000
+```
+
+Frontend:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+URLs:
+
+```text
+Backend:  http://localhost:8000
+Frontend: http://localhost:5173
+```
+
+## Required Services
+
+- Supabase project
+- Supabase private storage bucket named `chat-with-pdf`
+- Supabase schema from `backend/schema.sql`
+- Opencode API key
+- Optional LangSmith key
+- Tesseract installed locally if OCR is enabled outside Modal
 
 ## Project Structure
 
@@ -45,7 +201,6 @@ chat-with-pdf/
     modal_app.py
     requirements.txt
     schema.sql
-    README.md
   frontend/
     src/
       components/
@@ -53,145 +208,14 @@ chat-with-pdf/
       types/
       App.tsx
       styles.css
-    package.json
-    README.md
-```
-
-## Stack
-
-| Layer | Tech |
-| --- | --- |
-| Frontend | Vite, React, TypeScript, Supabase JS, Lucide icons |
-| Backend | Python, FastAPI, Pydantic, Uvicorn |
-| Auth | Supabase Auth |
-| Database | Supabase Postgres |
-| Storage | Supabase Storage |
-| Vector DB | ChromaDB |
-| OCR | Tesseract, pytesseract, Pillow |
-| Embeddings | `intfloat/multilingual-e5-small` |
-| Retrieval | Dense vector search + BM25 + BGE reranking |
-| LLM | Opencode API |
-| Deployment | Modal backend, Vercel-style frontend |
-
-## Local Development
-
-### Backend
-
-```bash
-cd backend
-py -m venv .venv
-.venv\Scripts\activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8000
-```
-
-Backend docs:
-
-```text
-http://localhost:8000/docs
-```
-
-### Frontend
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-Frontend dev server:
-
-```text
-http://localhost:5173
-```
-
-## Required Services
-
-You need:
-
-- Supabase project
-- Supabase private storage bucket named `chat-with-pdf`
-- Supabase schema from `backend/schema.sql`
-- Opencode API key
-- Optional LangSmith key
-- Tesseract installed locally if OCR is enabled outside Modal
-
-## Environment Overview
-
-Backend `.env` includes Supabase service credentials, Opencode config, Chroma path, CORS origins, OCR settings, and LangSmith config.
-
-Frontend `.env` includes:
-
-```env
-VITE_SUPABASE_URL=
-VITE_SUPABASE_ANON_KEY=
-VITE_API_URL=http://localhost:8000
-```
-
-## RAG Architecture
-
-```text
-Upload PDF
-  -> Supabase Storage
-  -> document row: processing
-  -> PyMuPDF text extraction
-  -> OCR when needed
-  -> chunking
-  -> embeddings
-  -> Chroma stores raw chunks + metadata + embeddings
-  -> document row: ready
-
-Question
-  -> Supabase JWT verification
-  -> intent routing
-     -> normal Q&A
-     -> document summary
-     -> comparison/ranking analysis
-  -> dense Chroma retrieval
-  -> BM25 keyword retrieval
-  -> merge/dedupe
-  -> BGE rerank
-  -> LLM with final context
-  -> answer + page references
-  -> saved chat history + API log
-
-Summary questions
-  -> representative chunks sampled across the document
-  -> summary answer with page references
-
-Comparison/ranking questions
-  -> broader retrieval
-  -> structured fact extraction
-  -> Python compare/rank step
-  -> final grounded answer
+  docs/
+    project-architecture.svg
 ```
 
 ## Deployment Notes
 
 - Backend deploys with `backend/modal_app.py`.
-- Modal installs Python requirements and the `tesseract-ocr` system package.
+- Modal installs Python requirements and `tesseract-ocr`.
 - Chroma persists on a Modal volume.
-- Frontend can be deployed to Vercel or similar.
-- Add the deployed backend URL to `VITE_API_URL`.
-
-## Current MVP Status
-
-Implemented:
-
-- Auth
-- Document upload/list/delete
-- Ingestion with OCR
-- Hybrid retrieval
-- BGE cross-encoder reranking
-- Acronym expansion
-- Generic compare/rank analysis branch
-- Representative summary branch
-- Chat and saved history
-- LLM call logging
-- Modern frontend with dark mode
-
-Planned or optional:
-
-- Persistent BM25 index or Postgres full-text search
-- More advanced OCR/image captioning for diagrams
-- Admin analytics dashboard
+- Frontend can deploy to Vercel or similar.
+- Configure Supabase email redirects to the deployed frontend `/app` route.

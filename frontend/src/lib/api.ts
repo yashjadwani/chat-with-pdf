@@ -1,4 +1,5 @@
 import { getAccessToken } from "./supabase";
+import { logger } from "./logger";
 import type { ChatMessage, PdfDocument, Citation, PersistedChatMessage } from "../types";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
@@ -24,7 +25,7 @@ function logApiTiming(path: string, timing: ReturnType<typeof createRequestTimin
   const clientToBackendMs = response.headers.get("X-Client-To-Backend-Ms");
   const requestId = response.headers.get("X-Request-Id") ?? timing.requestId;
 
-  console.info("[api timing]", {
+  logger.info("api_timing", {
     path,
     requestId,
     status: response.status,

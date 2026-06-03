@@ -1,6 +1,7 @@
 import { FormEvent, useState } from "react";
 import { ArrowRight, Eye, EyeOff, LockKeyhole, Mail, Shield } from "lucide-react";
 import { supabase } from "../../lib/supabase";
+import { logger } from "../../lib/logger";
 import { Button } from "../ui/Button";
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -33,9 +34,16 @@ export function LoginForm({
     const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
     if (authError) {
       const emailNotConfirmed = authError.message.toLowerCase().includes("email not confirmed");
-      const message = emailNotConfirmed ? "Please verify your email before signing in." : authError.message;
+      const message = emailNotConfirmed
+        ? "Please verify your email before signing in."
+        : getLoginErrorMessage(authError.message);
+      logger.warn("auth_login_failed", {
+        reason: emailNotConfirmed ? "email_not_confirmed" : normalizeLoginFailure(authError.message)
+      });
       setError(message);
       if (emailNotConfirmed) onVerificationNeeded(email.trim());
+    } else {
+      logger.info("auth_login_success");
     }
     setLoading(false);
   }
@@ -101,4 +109,32 @@ export function LoginForm({
       </button>
     </form>
   );
+}
+
+function getLoginErrorMessage(message: string) {
+  const normalized = message.toLowerCase();
+  if (
+    normalized.includes("invalid login credentials") ||
+    normalized.includes("invalid credentials") ||
+    normalized.includes("user not found") ||
+    normalized.includes("not registered")
+  ) {
+    return "This email has not been registered with us. Please complete the signup process.";
+  }
+
+  return message;
+}
+
+function normalizeLoginFailure(message: string) {
+  const normalized = message.toLowerCase();
+  if (
+    normalized.includes("invalid login credentials") ||
+    normalized.includes("invalid credentials") ||
+    normalized.includes("user not found") ||
+    normalized.includes("not registered")
+  ) {
+    return "unregistered_or_invalid_credentials";
+  }
+
+  return "auth_error";
 }

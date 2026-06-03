@@ -1,6 +1,7 @@
 import { FormEvent, useState } from "react";
 import { ArrowRight, Eye, EyeOff, LockKeyhole, Mail, Sparkles, UserRound } from "lucide-react";
 import { supabase } from "../../lib/supabase";
+import { logger } from "../../lib/logger";
 import { Button } from "../ui/Button";
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -19,6 +20,7 @@ export function SignupForm({
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [message, setMessage] = useState("");
+  const [existingAccountEmail, setExistingAccountEmail] = useState("");
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
   const emailIsInvalid = email.length > 0 && !emailPattern.test(email.trim());
@@ -28,9 +30,11 @@ export function SignupForm({
     event.preventDefault();
     setLoading(true);
     setMessage("");
+    setExistingAccountEmail("");
     setSuccess(false);
+    const trimmedEmail = email.trim();
 
-    if (!emailPattern.test(email.trim())) {
+    if (!emailPattern.test(trimmedEmail)) {
       setMessage("Enter a valid email address.");
       setLoading(false);
       return;
@@ -43,7 +47,7 @@ export function SignupForm({
     }
 
     const { data, error } = await supabase.auth.signUp({
-      email,
+      email: trimmedEmail,
       password,
       options: {
         emailRedirectTo: `${window.location.origin}/app`,
@@ -52,18 +56,43 @@ export function SignupForm({
         }
       }
     });
-    if (error) {
-      setMessage(error.message);
+    logger.info("auth_signup_response", {
+      hasError: Boolean(error),
+      hasSession: Boolean(data.session),
+      hasUserEmail: Boolean(getSignupResponseEmail(data)),
+      identityCount: getSignupResponseIdentityCount(data)
+    });
+    if (isExistingSignupResponse(data)) {
+      logger.warn("auth_signup_existing_account", { source: "silent_success" });
+      setExistingAccountEmail(trimmedEmail);
+      setMessage("");
+      setSuccess(false);
+    } else if (error) {
+      if (isExistingAccountMessage(error.message)) {
+        logger.warn("auth_signup_existing_account", { source: "auth_error" });
+        setExistingAccountEmail(trimmedEmail);
+        setMessage("");
+      } else {
+        logger.warn("auth_signup_failed", { reason: normalizeAuthReason(error.message) });
+        setMessage(error.message);
+      }
       setSuccess(false);
     } else {
       if (data.session) await supabase.auth.signOut();
+      logger.info("auth_signup_verification_required", { hasSession: Boolean(data.session) });
       setSuccess(true);
-      onVerificationNeeded(email.trim());
+      onVerificationNeeded(trimmedEmail);
     }
     setLoading(false);
   }
 
+  function goToLogin() {
+    setExistingAccountEmail("");
+    onModeChange();
+  }
+
   return (
+    <>
     <form className="auth-form" onSubmit={onSubmit}>
       <div className="form-heading">
         <Sparkles size={22} />
@@ -149,7 +178,17 @@ export function SignupForm({
       </label>
 
       <div className="form-message-slot" aria-live="polite">
-        {message ? <p className={success ? "form-note form-success" : "form-error"}>{message}</p> : null}
+        {existingAccountEmail ? (
+          <div className="account-exists-callout" role="alert">
+            <strong>You already have an account.</strong>
+            <span>{existingAccountEmail} is already registered. Try logging in instead.</span>
+            <button className="text-button account-login-link" type="button" onClick={goToLogin}>
+              Go to login
+            </button>
+          </div>
+        ) : message ? (
+          <p className={success ? "form-note form-success" : "form-error"}>{message}</p>
+        ) : null}
       </div>
 
       <Button disabled={loading || emailIsInvalid || passwordsDoNotMatch} type="submit">
@@ -161,5 +200,83 @@ export function SignupForm({
         Already have an account?
       </button>
     </form>
+    {existingAccountEmail ? (
+      <div className="auth-modal-backdrop" role="presentation">
+        <section className="account-exists-dialog" role="alertdialog" aria-modal="true" aria-labelledby="account-exists-title">
+          <span className="account-exists-icon" aria-hidden="true">
+            <Mail size={22} />
+          </span>
+          <div>
+            <h2 id="account-exists-title">You already have an account</h2>
+            <p>
+              <strong>{existingAccountEmail}</strong> is already registered. Log in instead to open your PDF Chat workspace.
+            </p>
+          </div>
+          <div className="account-exists-actions">
+            <Button type="button" onClick={goToLogin}>
+              Go to login
+              <ArrowRight size={17} />
+            </Button>
+          </div>
+        </section>
+      </div>
+    ) : null}
+    </>
   );
+}
+
+function getSignupResponseIdentities(data: unknown) {
+  if (!data || typeof data !== "object") return undefined;
+
+  const response = data as { identities?: unknown; user?: { identities?: unknown } | null };
+  return response.user?.identities ?? response.identities;
+}
+
+function getSignupResponseIdentityCount(data: unknown) {
+  const identities = getSignupResponseIdentities(data);
+  return Array.isArray(identities) ? identities.length : null;
+}
+
+function getSignupResponseEmail(data: unknown) {
+  if (!data || typeof data !== "object") return undefined;
+
+  const response = data as { email?: unknown; user?: { email?: unknown } | null };
+  return response.user?.email ?? response.email;
+}
+
+function isExistingSignupResponse(data: unknown) {
+  if (!data || typeof data !== "object") return false;
+
+  const response = data as { session?: unknown; user?: unknown };
+  const identities = getSignupResponseIdentities(data);
+  if (response.session) return false;
+  if (Array.isArray(identities)) return identities.length === 0;
+
+  return !response.user && !getSignupResponseEmail(data);
+}
+
+function isExistingAccountMessage(message: string) {
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes("duplicate") ||
+    normalized.includes("already registered") ||
+    normalized.includes("already been registered") ||
+    normalized.includes("already exists") ||
+    normalized.includes("already taken") ||
+    normalized.includes("email address is already") ||
+    normalized.includes("user already") ||
+    (
+      normalized.includes("already") &&
+      (normalized.includes("email") || normalized.includes("user") || normalized.includes("account")) &&
+      (normalized.includes("registered") || normalized.includes("exists") || normalized.includes("taken"))
+    )
+  );
+}
+
+function normalizeAuthReason(message: string) {
+  const normalized = message.toLowerCase();
+  if (isExistingAccountMessage(message)) return "existing_account";
+  if (normalized.includes("password")) return "password";
+  if (normalized.includes("email")) return "email";
+  return "auth_error";
 }

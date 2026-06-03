@@ -92,7 +92,7 @@ async def extract_comparison_facts(
     started_at = time.perf_counter()
 
     try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        async with httpx.AsyncClient(timeout=settings.comparison_extraction_timeout_seconds) as client:
             response = await client.post(
                 f"{settings.opencode_base_url}/chat/completions",
                 headers={
@@ -154,8 +154,12 @@ async def extract_comparison_facts(
             error_message=error_message,
         )
         return []
-    except Exception as exc:
-        logger.error(f"Comparison fact extraction failed: {str(exc)}")
+    except httpx.TimeoutException as exc:
+        error_message = (
+            f"{type(exc).__name__}: comparison extraction exceeded "
+            f"{settings.comparison_extraction_timeout_seconds}s"
+        )
+        logger.error(f"Comparison fact extraction failed: {error_message}")
         ApiLogDB().insert_log(
             purpose="comparison_extraction",
             model=settings.opencode_model,
@@ -166,7 +170,23 @@ async def extract_comparison_facts(
             user_prompt=question,
             latency_ms=int((time.perf_counter() - started_at) * 1000),
             request_metadata={"retrieved_chunks": len(citations)},
-            error_message=str(exc),
+            error_message=error_message,
+        )
+        return []
+    except Exception as exc:
+        error_message = f"{type(exc).__name__}: {str(exc) or repr(exc)}"
+        logger.error(f"Comparison fact extraction failed: {error_message}")
+        ApiLogDB().insert_log(
+            purpose="comparison_extraction",
+            model=settings.opencode_model,
+            status="error",
+            user_id=user_id,
+            document_id=document_id,
+            session_id=session_id,
+            user_prompt=question,
+            latency_ms=int((time.perf_counter() - started_at) * 1000),
+            request_metadata={"retrieved_chunks": len(citations)},
+            error_message=error_message,
         )
         return []
 
@@ -234,7 +254,7 @@ async def generate_comparison_answer(
     started_at = time.perf_counter()
 
     try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        async with httpx.AsyncClient(timeout=settings.comparison_answer_timeout_seconds) as client:
             response = await client.post(
                 f"{settings.opencode_base_url}/chat/completions",
                 headers={
@@ -296,8 +316,12 @@ async def generate_comparison_answer(
             error_message=error_message,
         )
         raise RuntimeError("LLM call failed. Please try again later.") from exc
-    except Exception as exc:
-        logger.error(f"Comparison answer generation failed: {str(exc)}")
+    except httpx.TimeoutException as exc:
+        error_message = (
+            f"{type(exc).__name__}: comparison answer exceeded "
+            f"{settings.comparison_answer_timeout_seconds}s"
+        )
+        logger.error(f"Comparison answer generation failed: {error_message}")
         ApiLogDB().insert_log(
             purpose="comparison_answer",
             model=settings.opencode_model,
@@ -308,6 +332,22 @@ async def generate_comparison_answer(
             user_prompt=question,
             latency_ms=int((time.perf_counter() - started_at) * 1000),
             request_metadata={"retrieved_chunks": len(citations), "ranked_facts": len(ranked_facts)},
-            error_message=str(exc),
+            error_message=error_message,
+        )
+        raise RuntimeError("LLM call failed. Please try again later.") from exc
+    except Exception as exc:
+        error_message = f"{type(exc).__name__}: {str(exc) or repr(exc)}"
+        logger.error(f"Comparison answer generation failed: {error_message}")
+        ApiLogDB().insert_log(
+            purpose="comparison_answer",
+            model=settings.opencode_model,
+            status="error",
+            user_id=user_id,
+            document_id=document_id,
+            session_id=session_id,
+            user_prompt=question,
+            latency_ms=int((time.perf_counter() - started_at) * 1000),
+            request_metadata={"retrieved_chunks": len(citations), "ranked_facts": len(ranked_facts)},
+            error_message=error_message,
         )
         raise RuntimeError("LLM call failed. Please try again later.") from exc

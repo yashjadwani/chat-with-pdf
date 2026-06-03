@@ -48,8 +48,12 @@ class Settings(BaseSettings):
     retrieval_semantic_cache_threshold: float = 0.94
     retrieval_semantic_cache_max_entries: int = 256
     query_expansion_enabled: bool = True
-    query_expansion_timeout_seconds: float = 5
-    query_expansion_max_tokens: int = 600
+    query_expansion_timeout_seconds: float = 60
+    query_expansion_max_tokens: int = 3000
+    query_expansion_failure_threshold: int = 3
+    query_expansion_cooldown_seconds: int = 300
+    comparison_extraction_timeout_seconds: float = 15
+    comparison_answer_timeout_seconds: float = 60
 
     # Memory
     memory_window_size: int = 10

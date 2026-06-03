@@ -10,6 +10,8 @@ from app.db.supabase import ApiLogDB
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
+_query_expansion_failures = 0
+_query_expansion_disabled_until = 0.0
 
 
 class QueryExpansion(BaseModel):
@@ -48,7 +50,11 @@ def fallback_expansion(query: str) -> QueryExpansion:
     )
 
 
-def format_recent_history(messages: list[dict], max_turns: int = 3) -> str:
+def format_recent_history(
+    messages: list[dict],
+    max_turns: int = 3,
+    max_chars_per_message: int = 320,
+) -> str:
     if not messages:
         return ""
 
@@ -58,6 +64,8 @@ def format_recent_history(messages: list[dict], max_turns: int = 3) -> str:
         role = "User" if message.get("role") == "user" else "Assistant"
         content = str(message.get("content") or "").strip()
         if content:
+            if len(content) > max_chars_per_message:
+                content = f"{content[:max_chars_per_message].rstrip()}..."
             lines.append(f"{role}: {content}")
     return "\n".join(lines)
 
@@ -82,6 +90,51 @@ def _normalise_expansion(raw: dict, fallback_query: str) -> QueryExpansion:
     )
 
 
+def _extract_response_debug(data: dict, content: str | None = None) -> dict:
+    choices = data.get("choices") if isinstance(data, dict) else None
+    first_choice = choices[0] if isinstance(choices, list) and choices else {}
+    message = first_choice.get("message") if isinstance(first_choice, dict) else {}
+    message = message if isinstance(message, dict) else {}
+    raw_content = message.get("content") if content is None else content
+    reasoning_content = message.get("reasoning_content")
+
+    return {
+        "response_keys": list(data.keys()) if isinstance(data, dict) else [],
+        "choice_count": len(choices) if isinstance(choices, list) else 0,
+        "finish_reason": first_choice.get("finish_reason") if isinstance(first_choice, dict) else None,
+        "message_keys": list(message.keys()),
+        "content_length": len(raw_content or ""),
+        "content_preview": (raw_content or "")[:500],
+        "reasoning_content_length": len(reasoning_content or ""),
+        "reasoning_content_preview": (reasoning_content or "")[:500],
+    }
+
+
+def _query_expansion_circuit_open() -> bool:
+    return time.monotonic() < _query_expansion_disabled_until
+
+
+def _record_query_expansion_success() -> None:
+    global _query_expansion_failures, _query_expansion_disabled_until
+    _query_expansion_failures = 0
+    _query_expansion_disabled_until = 0.0
+
+
+def _record_query_expansion_failure(error_message: str) -> None:
+    global _query_expansion_failures, _query_expansion_disabled_until
+    _query_expansion_failures += 1
+    if _query_expansion_failures < settings.query_expansion_failure_threshold:
+        return
+
+    _query_expansion_disabled_until = time.monotonic() + settings.query_expansion_cooldown_seconds
+    logger.warning(
+        "Query expansion circuit opened for %ss after %s failures. Last error: %s",
+        settings.query_expansion_cooldown_seconds,
+        _query_expansion_failures,
+        error_message,
+    )
+
+
 async def expand_query_for_retrieval(
     *,
     original_query: str,
@@ -92,6 +145,8 @@ async def expand_query_for_retrieval(
     session_id: str | None = None,
 ) -> QueryExpansion:
     if not settings.query_expansion_enabled:
+        return fallback_expansion(acronym_expanded_query)
+    if _query_expansion_circuit_open():
         return fallback_expansion(acronym_expanded_query)
 
     user_prompt = (
@@ -123,17 +178,23 @@ async def expand_query_for_retrieval(
                         {"role": "user", "content": user_prompt},
                     ],
                     "max_tokens": settings.query_expansion_max_tokens,
+                    "response_format": {"type": "json_object"},
+                    "reasoning": {
+                        "effort": "none",
+                        "exclude": True,
+                    },
                     "temperature": 0.0,
                 },
             )
             response.raise_for_status()
             data = response.json()
 
-        content = data["choices"][0]["message"]["content"]
+        content = data["choices"][0]["message"].get("content") or ""
         expansion = _normalise_expansion(
             raw=json.loads(_strip_code_fence(content)),
             fallback_query=acronym_expanded_query,
         )
+        _record_query_expansion_success()
         usage = data.get("usage") or {}
         ApiLogDB().insert_log(
             purpose="query_expansion",
@@ -158,8 +219,9 @@ async def expand_query_for_retrieval(
             raw_response=data,
         )
         return expansion
-    except Exception as exc:
-        logger.warning(f"Query expansion failed, using fallback: {str(exc)}")
+    except httpx.HTTPStatusError as exc:
+        error_message = f"{type(exc).__name__}: {exc.response.status_code} {exc.response.text}"
+        logger.warning(f"Query expansion failed, using fallback: {error_message}")
         ApiLogDB().insert_log(
             purpose="query_expansion",
             model=settings.opencode_model,
@@ -170,6 +232,51 @@ async def expand_query_for_retrieval(
             user_prompt=original_query,
             latency_ms=int((time.perf_counter() - started_at) * 1000),
             request_metadata=request_metadata,
-            error_message=str(exc),
+            raw_response={
+                "status_code": exc.response.status_code,
+                "body": exc.response.text,
+            },
+            error_message=error_message,
         )
+        _record_query_expansion_failure(error_message)
+        return fallback_expansion(acronym_expanded_query)
+    except httpx.TimeoutException as exc:
+        error_message = (
+            f"{type(exc).__name__}: query expansion exceeded "
+            f"{settings.query_expansion_timeout_seconds}s"
+        )
+        logger.warning(f"Query expansion failed, using fallback: {error_message}")
+        ApiLogDB().insert_log(
+            purpose="query_expansion",
+            model=settings.opencode_model,
+            status="error",
+            user_id=user_id,
+            document_id=document_id,
+            session_id=session_id,
+            user_prompt=original_query,
+            latency_ms=int((time.perf_counter() - started_at) * 1000),
+            request_metadata=request_metadata,
+            error_message=error_message,
+        )
+        _record_query_expansion_failure(error_message)
+        return fallback_expansion(acronym_expanded_query)
+    except Exception as exc:
+        error_message = f"{type(exc).__name__}: {str(exc) or repr(exc)}"
+        logger.warning(f"Query expansion failed, using fallback: {error_message}")
+        response_debug = _extract_response_debug(data, content) if "data" in locals() else None
+        ApiLogDB().insert_log(
+            purpose="query_expansion",
+            model=settings.opencode_model,
+            status="error",
+            user_id=user_id,
+            document_id=document_id,
+            session_id=session_id,
+            user_prompt=original_query,
+            latency_ms=int((time.perf_counter() - started_at) * 1000),
+            request_metadata=request_metadata,
+            response_metadata={"response_debug": response_debug} if response_debug else None,
+            raw_response=data if "data" in locals() else None,
+            error_message=error_message,
+        )
+        _record_query_expansion_failure(error_message)
         return fallback_expansion(acronym_expanded_query)

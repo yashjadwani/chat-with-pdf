@@ -105,6 +105,9 @@ async def extract_comparison_facts(
                     "model": settings.opencode_model,
                     "messages": [{"role": "user", "content": prompt}],
                     "temperature": 0,
+                    "reasoning": {"effort": "none", "exclude": True},
+                    "thinking": {"type": "disabled"},
+                    "max_tokens": 1000, 
                 },
             )
             response.raise_for_status()

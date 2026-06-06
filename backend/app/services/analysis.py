@@ -266,6 +266,8 @@ async def generate_comparison_answer(
                 json={
                     "model": settings.opencode_model,
                     "messages": [{"role": "user", "content": prompt}],
+                    "reasoning": {"effort": "none","exclude": True,},
+                    "thinking": {"type": "disabled"}, 
                     "temperature": 0.1,
                 },
             )

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useEffect, useState } from "react";
 import type { ChatMessage } from "../../types";
 
 function renderInlineMarkdown(text: string): ReactNode[] {
@@ -122,14 +123,45 @@ export function MessageBubble({
     <div className={`message-row ${message.role}`}>
       <div className="message-bubble">
         {message.role === "assistant" && !message.content ? (
-          <div className="answer-loading" aria-live="polite">
-            <span className="loading-dot" />
-            <span>{loadingLabel}</span>
-          </div>
+          <AnswerLoading loadingLabel={loadingLabel} />
         ) : (
           <div className="message-content">{renderMessageContent(message.content)}</div>
         )}
       </div>
+    </div>
+  );
+}
+
+const waitingMessages = [
+  "Following the strongest clues",
+  "Cross-checking nearby pages",
+  "Asking the footnotes nicely",
+  "Putting the evidence in order"
+];
+
+export function AnswerLoading({ loadingLabel }: { loadingLabel: string }) {
+  const [messageIndex, setMessageIndex] = useState(0);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setMessageIndex((current) => (current + 1) % waitingMessages.length);
+    }, 2200);
+
+    return () => window.clearInterval(interval);
+  }, []);
+
+  return (
+    <div className="answer-loading">
+      <span className="answer-loading-pages" aria-hidden="true">
+        <i />
+        <i />
+        <i />
+        <b />
+      </span>
+      <span className="answer-loading-copy" aria-live="polite">
+        <strong>{loadingLabel}</strong>
+        <span key={messageIndex}>{waitingMessages[messageIndex]}...</span>
+      </span>
     </div>
   );
 }

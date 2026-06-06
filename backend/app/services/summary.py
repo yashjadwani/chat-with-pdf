@@ -94,6 +94,9 @@ async def generate_summary_answer(
                 json={
                     "model": settings.opencode_model,
                     "messages": [{"role": "user", "content": prompt}],
+                    "max_tokens": settings.document_summary_max_tokens,
+                    "reasoning": {"effort": "none","exclude": True,},
+                    "thinking": {"type": "disabled"}, 
                     "temperature": 0.1,
                 },
             )

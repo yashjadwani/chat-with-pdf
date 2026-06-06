@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     opencode_api_key:str
     opencode_base_url: str ="https://opencode.ai/zen/v1"
     opencode_model: str = "deepseek-v4-flash-free"
+    chat_answer_max_tokens: int = 1000
+    document_summary_max_tokens: int = 1500
     
     # Embedding
     embedding_model: str = "intfloat/multilingual-e5-small"
@@ -52,7 +54,7 @@ class Settings(BaseSettings):
     query_expansion_max_tokens: int = 3000
     query_expansion_failure_threshold: int = 3
     query_expansion_cooldown_seconds: int = 300
-    comparison_extraction_timeout_seconds: float = 15
+    comparison_extraction_timeout_seconds: float = 30
     comparison_answer_timeout_seconds: float = 60
 
     # Memory

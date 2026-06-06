@@ -20,7 +20,6 @@ import type { Session } from "@supabase/supabase-js";
 import type { PdfDocument } from "./types";
 import { supabase } from "./lib/supabase";
 import { deleteDocument, listDocuments } from "./lib/api";
-import { logger } from "./lib/logger";
 import { LoginForm } from "./components/auth/LoginForm";
 import { SignupForm } from "./components/auth/SignupForm";
 import { UploadButton } from "./components/dashboard/UploadButton";
@@ -93,11 +92,6 @@ export function App() {
     setError("");
     try {
       const result = await listDocuments();
-      logger.info("documents_loaded", {
-        count: result.documents.length,
-        readyCount: result.documents.filter((document) => document.status === "ready").length,
-        processingCount: result.documents.filter((document) => document.status === "processing").length
-      });
       tokenRetryCount.current = 0;
       setDocuments(result.documents);
       setDocsLoaded(true);
@@ -110,14 +104,10 @@ export function App() {
     } catch (docsError) {
       const message = docsError instanceof Error ? docsError.message : "Could not load documents.";
       if (isTokenWarmupError(message) && tokenRetryCount.current < 2) {
-        logger.warn("documents_load_retry", { reason: "token_warmup", attempt: tokenRetryCount.current + 1 });
         tokenRetryCount.current += 1;
         window.setTimeout(() => refreshDocuments(false), 1200);
         return;
       }
-      logger.warn("documents_load_failed", {
-        reason: isTokenWarmupError(message) ? "token_warmup" : "request_failed"
-      });
       setError(isTokenWarmupError(message) ? "Your sign-in session is still starting. Try refresh in a moment." : message);
       setDocsLoaded(true);
     } finally {
@@ -132,7 +122,6 @@ export function App() {
     setError("");
     try {
       await deleteDocument(pendingDelete.document_id);
-      logger.info("document_deleted");
       setDocuments((current) =>
         current.filter((document) => document.document_id !== pendingDelete.document_id)
       );
@@ -143,7 +132,6 @@ export function App() {
       setToast("Document deleted.");
       setPendingDelete(null);
     } catch (deleteError) {
-      logger.warn("document_delete_failed");
       setError(deleteError instanceof Error ? deleteError.message : "Could not delete document.");
     } finally {
       setDeleting(false);
@@ -197,7 +185,6 @@ export function App() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
-      logger.info("auth_session_loaded", { authenticated: Boolean(data.session) });
       if (data.session && routePath !== appPath) {
         navigateTo(appPath, true);
       }
@@ -210,7 +197,6 @@ export function App() {
     });
     const { data } = supabase.auth.onAuthStateChange((_event, newSession) => {
       setSession(newSession);
-      logger.info("auth_state_changed", { event: _event, authenticated: Boolean(newSession) });
       if (newSession) {
         localStorage.removeItem("chat-pdf-verification-email");
         setPendingVerificationEmail("");
@@ -634,9 +620,6 @@ function CheckEmailPanel({
         emailRedirectTo: getAppRedirectUrl()
       }
     });
-    logger[error ? "warn" : "info"](error ? "auth_verification_resend_failed" : "auth_verification_resend_sent", {
-      source: "check_email_panel"
-    });
     setMessage(error ? error.message : "Verification email sent again.");
     setResending(false);
   }
@@ -675,15 +658,16 @@ function VerifyEmailPanel({
   initialEmail: string;
   onBackToLogin: () => void;
 }) {
-  const email = initialEmail.trim();
+  const [email, setEmail] = useState(initialEmail);
   const [message, setMessage] = useState(getAuthErrorMessage() || "Please verify your email address to continue.");
   const [success, setSuccess] = useState(false);
   const [resending, setResending] = useState(false);
 
   async function resendVerificationEmail() {
+    const trimmedEmail = email.trim();
     setSuccess(false);
 
-    if (!email) {
+    if (!trimmedEmail) {
       setMessage("Enter the email address you used to create your account.");
       return;
     }
@@ -692,20 +676,17 @@ function VerifyEmailPanel({
     setMessage("");
     const { error } = await supabase.auth.resend({
       type: "signup",
-      email,
+      email: trimmedEmail,
       options: {
         emailRedirectTo: getAppRedirectUrl()
       }
-    });
-    logger[error ? "warn" : "info"](error ? "auth_verification_resend_failed" : "auth_verification_resend_sent", {
-      source: "verify_email_panel"
     });
 
     if (error) {
       setMessage(error.message);
       setSuccess(false);
     } else {
-      localStorage.setItem("chat-pdf-verification-email", email);
+      localStorage.setItem("chat-pdf-verification-email", trimmedEmail);
       setMessage("Verification email sent again. Check your inbox for the latest link.");
       setSuccess(true);
     }
@@ -724,13 +705,19 @@ function VerifyEmailPanel({
         </div>
       </div>
 
-      <div className="field-group">
+      <label className="field-group">
         <span className="field-label">Email address</span>
-        <div className="static-email-field" aria-label={`Email address ${email || "not available"}`}>
+        <span className="input-shell">
           <MailCheck size={17} />
-          <span>{email || "No email saved"}</span>
-        </div>
-      </div>
+          <input
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            type="email"
+            autoComplete="email"
+            required
+          />
+        </span>
+      </label>
 
       <div className="form-message-slot" aria-live="polite">
         {message ? <p className={success ? "form-note form-success" : "form-error"}>{message}</p> : null}

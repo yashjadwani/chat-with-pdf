@@ -3,7 +3,7 @@ import { AlertTriangle, ArrowDown, BarChart3, CheckCircle2, Clock3, FileSearch, 
 import type { ChatMessage, PdfDocument } from "../../types";
 import { askDocument, clearChatHistory, getChatHistory, makeMessage } from "../../lib/api";
 import { Button } from "../ui/Button";
-import { MessageBubble, renderMessageContent } from "./MessageBubble";
+import { AnswerLoading, MessageBubble, renderMessageContent } from "./MessageBubble";
 import { QueryInput } from "./QueryInput";
 
 export function ChatWindow({
@@ -321,10 +321,7 @@ function DocumentOverviewCard({
           {renderMessageContent(message.content)}
         </div>
       ) : (
-        <div className="answer-loading" aria-live="polite">
-          <span className="loading-dot" />
-          <span>{loadingLabel}</span>
-        </div>
+        <AnswerLoading loadingLabel={loadingLabel} />
       )}
 
       {pageNumbers.length > 0 && (

@@ -72,7 +72,11 @@ async def stream_opencode(
             json={
                 "model": model,
                 "messages": messages,
-                "max_tokens": 1024,
+                "max_tokens": settings.chat_answer_max_tokens,
+                "reasoning": {
+                    "effort": "none",
+                    "exclude": True,
+                },
                 "temperature": 0.1,
                 "stream": True,
             },
@@ -137,6 +141,9 @@ async def generate_answer(
                 json={
                     "model": settings.opencode_model,
                     "messages": messages,
+                    "max_tokens": settings.chat_answer_max_tokens,
+                    "reasoning": {"effort": "none","exclude": True,},
+                    "thinking": {"type": "disabled"}, 
                     "temperature": 0.1,
                 },
             )

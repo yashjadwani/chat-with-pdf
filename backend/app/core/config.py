@@ -46,7 +46,9 @@ class Settings(BaseSettings):
     # Retrieval
     retrieval_top_k: int = 5
     retrival_k:int = 50
-    reranker_model: str = "BAAI/bge-reranker-base"
+    #reranker_model: str = "BAAI/bge-reranker-base"
+    reranker_model: str = "BAAI/bge-reranker-v2-m3"
+    retrieval_reranker_enabled: bool = False
     retrieval_rrf_k: int = 60
     retrieval_rerank_k: int = 60
     retrieval_neighbor_window: int = 1

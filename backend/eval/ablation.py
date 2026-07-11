@@ -111,7 +111,7 @@ def main() -> int:
     get_settings().retrieval_semantic_cache_enabled = False
 
     enabled = [name for name in ("no_acronym", "no_filter", "no_bm25", "no_rerank", "no_neighbor") if getattr(args, name)]
-    print(f"\nAblation (k={args.k}, cases={len(cases)}) — disabled: {', '.join(enabled) or 'none (full pipeline)'}\n")
+    print(f"\nAblation (k={args.k}, cases={len(cases)}) - disabled: {', '.join(enabled) or 'none (full pipeline)'}\n")
 
     agg = {"base": {"hit": [], "mrr": [], "recall": []}, "pipe": {"hit": [], "mrr": [], "recall": []}}
     regressions = []
@@ -126,7 +126,7 @@ def main() -> int:
 
     for label in ("hit", "mrr", "recall"):
         b, p = mean(agg["base"][label]), mean(agg["pipe"][label])
-        arrow = "▲" if p > b + 1e-9 else "▼" if p < b - 1e-9 else "="
+        arrow = "UP" if p > b + 1e-9 else "DOWN" if p < b - 1e-9 else "=="
         print(f"  {label.upper():<7} baseline {b:.3f}   pipeline {p:.3f}   {arrow}")
 
     if regressions:

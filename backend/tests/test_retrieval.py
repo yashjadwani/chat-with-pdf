@@ -115,6 +115,42 @@ class TestFilterByQueryTerms:
         assert filtered == citations[:5]
 
 
+class TestRerankerToggle:
+    def _wire(self, monkeypatch, enabled: bool):
+        import app.services.retrieval as r
+
+        monkeypatch.setattr(r.settings, "retrieval_reranker_enabled", enabled)
+        monkeypatch.setattr(r, "_get_bm25_payload", lambda document_id: (None, ()))
+        monkeypatch.setattr(r, "embed_query", lambda q: [0.0, 0.0])
+        monkeypatch.setattr(r, "get_semantic_cache_entry", lambda **kw: None)
+        monkeypatch.setattr(r, "set_semantic_cache_entry", lambda **kw: None)
+        monkeypatch.setattr(
+            r,
+            "dense_retrieve",
+            lambda **kw: [make_candidate(f"c{i}", chunk_index=i) | {"meta": {"page_number": i, "chunk_index": i}} for i in (1, 2, 3)],
+        )
+        monkeypatch.setattr(r, "bm25_retrieve", lambda **kw: [])
+        calls = {"rerank": 0}
+
+        def spy_rerank(query, candidates):
+            calls["rerank"] += 1
+            return candidates
+
+        monkeypatch.setattr(r, "rerank_candidates", spy_rerank)
+        return r, calls
+
+    def test_disabled_skips_reranker_and_keeps_rrf_order(self, monkeypatch):
+        r, calls = self._wire(monkeypatch, enabled=False)
+        citations = r.retrieve_chunks(question="q", document_id="d", top_k=2)
+        assert calls["rerank"] == 0
+        assert [c.page_number for c in citations] == [1, 2]
+
+    def test_enabled_calls_reranker(self, monkeypatch):
+        r, calls = self._wire(monkeypatch, enabled=True)
+        r.retrieve_chunks(question="q", document_id="d", top_k=2)
+        assert calls["rerank"] > 0
+
+
 class TestTokenize:
     @pytest.fixture(autouse=True)
     def _require_stopwords(self):

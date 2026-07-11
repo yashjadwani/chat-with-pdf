@@ -237,6 +237,19 @@ python -m pytest tests/ -v
 GitHub Actions runs the backend tests and a frontend type-check + build on
 every push (`.github/workflows/ci.yml`).
 
+## Project docs
+
+Deeper write-ups I keep alongside the code:
+
+- [`docs/EVAL_AND_SCALING.md`](docs/EVAL_AND_SCALING.md) — how I evaluate, what the
+  evals found (including my reranker regression), and the latency/load/cost levers
+  I'd pull to run this for real users.
+- [`docs/RAG_INTERVIEW_CHEATSHEET.md`](docs/RAG_INTERVIEW_CHEATSHEET.md) — my honest
+  talking points: the architecture, the decisions and why, and where it does and
+  doesn't fall over.
+- [`docs/SECURITY_AUDIT.md`](docs/SECURITY_AUDIT.md) — the security/reliability/a11y
+  review: what I found, what I fixed, and what's still open.
+
 ## Local Development
 
 Backend:

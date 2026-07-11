@@ -393,14 +393,22 @@ def retrieve_chunks(
     dense_candidates = filter_candidates_by_query_terms(question=ranking_query, candidates=dense_candidates)
     bm25_candidates = bm25_retrieve(question=bm25_search_query, document_id=document_id, top_k=k)
     merged = merge_candidates(dense_candidates, bm25_candidates)
-    rerank_pool = merged[:settings.retrieval_rerank_k]
-    reranked_seed = rerank_candidates(ranking_query, rerank_pool)
-    expanded_candidates = expand_with_neighbor_candidates(
-        candidates=reranked_seed[:final_k],
-        all_chunks=document_chunks,
-    )
-    reranked = rerank_candidates(ranking_query, expanded_candidates)
-    citations = [_candidate_to_citation(candidate) for candidate in reranked[:final_k]]
+
+    if settings.retrieval_reranker_enabled:
+        rerank_pool = merged[:settings.retrieval_rerank_k]
+        reranked_seed = rerank_candidates(ranking_query, rerank_pool)
+        expanded_candidates = expand_with_neighbor_candidates(
+            candidates=reranked_seed[:final_k],
+            all_chunks=document_chunks,
+        )
+        final_candidates = rerank_candidates(ranking_query, expanded_candidates)
+        neighbors_added = len(expanded_candidates) - len(reranked_seed[:final_k])
+    else:
+        # Reranker off: serve the RRF-fused order directly (no rerank, no neighbor).
+        final_candidates = merged
+        neighbors_added = 0
+
+    citations = [_candidate_to_citation(candidate) for candidate in final_candidates[:final_k]]
     set_semantic_cache_entry(
         document_id=document_id,
         final_k=final_k,
@@ -412,13 +420,14 @@ def retrieve_chunks(
         logger.warning(f"No chunks found for document {document_id}")
     else:
         logger.info(
-            "Hybrid retrieved %s chunks for document %s (dense=%s, bm25=%s, merged=%s, neighbors=%s)",
+            "Hybrid retrieved %s chunks for document %s (dense=%s, bm25=%s, merged=%s, rerank=%s, neighbors=%s)",
             len(citations),
             document_id,
             len(dense_candidates),
             len(bm25_candidates),
             len(merged),
-            len(expanded_candidates) - len(reranked_seed[:final_k]),
+            settings.retrieval_reranker_enabled,
+            neighbors_added,
         )
 
     return citations

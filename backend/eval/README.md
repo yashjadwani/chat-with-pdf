@@ -108,11 +108,14 @@ I want a sample in the repo.
 
 `judge.py` evaluates the *answer* layer: it runs each case through the real
 answer path (`retrieve_chunks` → `generate_answer`) and asks a judge model to
-score the answer against only the retrieved context:
+score it:
 
-- **faithfulness (1–5)** — every claim is supported by the context; a correct
-  "that isn't in this document" counts as faithful.
+- **faithfulness (1–5)** — every claim is supported by the retrieved context; a
+  correct "that isn't in this document" counts as faithful.
 - **relevance (1–5)** — the answer actually addresses the question.
+- **correctness (1–5)** — the answer matches the **reference** (the case's gold
+  `answer_substrings`), or correctly abstains when there's no answer. This is the
+  only score judged against ground truth, not just the retrieved context.
 - **unsupported_claims** — verbatim claims the judge couldn't find support
   for; I read these by hand, they're the most actionable output.
 
@@ -121,7 +124,11 @@ python -m eval.judge
 python -m eval.judge --k 5 --dataset eval/dataset.json
 ```
 
-My honest caveat: LLM-as-judge is noisy. I treat the scores as a relative signal
-(comparing before/after a retrieval or prompt change) rather than absolute
-truth, and I spot-check flagged claims by hand. Each case makes two extra LLM
-calls (answer + judge), so a 20-case run costs ~40 calls.
+My honest caveat: LLM-as-judge is noisy, and on an easy factual set it
+**saturates** — every answer scores 5/5, so it can't discriminate between
+configs. That's made worse by using a weak free judge model, which tends to
+rubber-stamp. So a 5/5 here means "the answers are good on easy questions," not
+"this config is rigorously better." To make it discriminate I'd need a stronger
+judge model and harder cases (multi-hop, ambiguous, adversarial). I treat these
+scores as a relative signal and spot-check flagged claims by hand. Each case
+makes two extra LLM calls (answer + judge), so a 20-case run costs ~40 calls.

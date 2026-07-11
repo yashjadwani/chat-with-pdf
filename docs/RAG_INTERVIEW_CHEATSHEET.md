@@ -58,9 +58,12 @@ per-request + per-LLM-call logging.
 
 - **Exact-identifier factual lookups.** Hybrid retrieval nails clause/control
   numbers — this is its sweet spot.
-- **Grounding & hallucination.** Answers are constrained to retrieved context and
-  cite pages; my judge eval showed faithfulness 5/5, 0 unsupported claims on the
-  test set, and it correctly abstains ("not in this document").
+- **Grounding, correctness & hallucination.** Answers are constrained to retrieved
+  context and cite pages, and the model correctly abstains ("not in this
+  document"). My judge scores three axes — faithfulness, relevance, and
+  **correctness** (matched against the gold answer, not just the context) — and all
+  three come back 5/5. But I say that with a caveat (below): the set is easy and the
+  judge is weak, so 5/5 shows it *works*, not that it's rigorously optimal.
 - **Provider outages.** Ordered fallback (Opencode → Gemini → OpenRouter) so one
   provider flaking doesn't take answers down.
 - **Prompt injection from user input.** A deterministic guard blocks jailbreak
@@ -121,8 +124,13 @@ willing to say "I was wrong, here's the better answer" is the signal.
 - **"How do you know retrieval got better?"** → I don't eyeball logs; I run a gold
   set with Hit@k/MRR@k/Recall@k and a dense-vs-hybrid ablation. Numbers above.
 - **"How do you catch hallucination?"** → citation-first prompting + an LLM-judge
-  faithfulness eval that flags unsupported claims. It's noisy, so I treat it as a
-  relative signal and spot-check.
+  eval scoring faithfulness, relevance, and **correctness** (the last one against
+  the gold answer, so it's not just "grounded" but "actually right"), plus flagged
+  unsupported claims. And I'll pre-empt the obvious follow-up: all three currently
+  score 5/5, but that's because the set is easy and my judge is a weak free model
+  that rubber-stamps — the eval *saturates*, so it can't yet discriminate configs.
+  To make it rigorous I'd use a stronger judge and harder cases. I trust the
+  retrieval metrics more for now.
 - **"Why not just use a bigger reranker / embedder?"** → I did test a bigger
   reranker: `v2-m3` measurably beat everything (MRR 0.86), but at ~2× latency and
   2.3 GB — so it's a real quality-vs-cost trade, not a free win. For *embeddings*

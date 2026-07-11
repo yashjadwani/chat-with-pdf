@@ -82,11 +82,36 @@ config" is a **deployment-dependent** decision, not a pure quality one:
 | GPU / warm pool | v2-m3 on — quality worth it, latency absorbed |
 | CPU / scale-to-zero | lean RRF-only — +0.05 MRR probably isn't worth 2.3 GB + 2× latency + cold starts |
 
-### Answer quality (judge eval)
+### Answer quality (judge eval) — and why I don't over-read it
 
-On the same set: faithfulness **5.0/5**, relevance **5.0/5**, 0/6 answers with
-unsupported claims (1 of 7 judge outputs unparseable — LLM-as-judge is noisy and
-I made the parser refuse to guess).
+The judge scores three things: **faithfulness** (grounded in the retrieved
+context), **relevance** (addresses the question), and **correctness** (matches
+the case's gold answer — the only one judged against ground truth, not just the
+context). On this set all three come back **5.0/5**, with 0 unsupported claims,
+for *every* config — including the negative/abstention cases (the model correctly
+refuses, and the judge counts that as faithful and correct). So grounding,
+abstention, *and* factual correctness genuinely work here.
+
+**But I read those 5/5s with heavy skepticism, and so should anyone else:**
+
+- **The eval saturates on this gold set — even correctness.** The questions are
+  easy factual lookups where the answer chunk is clearly present, so the LLM nails
+  all of them. When *every* answer scores 5 on all three axes, the judge **can't
+  discriminate** between configs — it told me nothing about reranker-on vs
+  reranker-off, because both produce perfect answers here. Notably, adding
+  correctness (judged against the gold answer, not just the context) *didn't*
+  break the tie — the answers really are right, they just don't separate.
+- **The judge itself is weak.** I'm using a free model (`deepseek-v4-flash-free`),
+  and weak LLM judges tend to **rubber-stamp 5/5**. Some runs also emitted messy
+  output — I hardened the parser with a regex fallback, but the underlying judge
+  reliability is still low.
+
+So **"5/5" here means "the answers are good on easy questions," not "this config
+is rigorously better."** To make the judge eval actually discriminate I'd need
+(a) a **stronger judge model** (not the free tier) and (b) **harder cases**
+(multi-hop, ambiguous, adversarial) so scores spread out instead of pinning at 5.
+Until then I trust the *retrieval* metrics (MRR/Recall) far more than these
+answer scores, and I'd never present a 5/5 as proof that one config beats another.
 
 ### Everything I tried and ruled out
 

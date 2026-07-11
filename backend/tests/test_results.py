@@ -26,7 +26,7 @@ class TestSaveRun:
             case_records=[{"id": "c1", "document_id": "doc-a", "question": "q?"}],
         )
 
-        assert path.parent == tmp_path
+        assert path.parent == tmp_path / "results"
         assert path.name.startswith("results_retrieval_doc-a_")
         assert path.suffix == ".jsonl"
 

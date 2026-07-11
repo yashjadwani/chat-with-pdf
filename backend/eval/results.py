@@ -48,11 +48,13 @@ def save_run(
 ) -> Path:
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     stem = f"results_{kind}_{_doc_label(document_ids)}_{timestamp}"
-    path = EVAL_DIR / f"{stem}.jsonl"
+    results_dir = EVAL_DIR / "results"
+    results_dir.mkdir(parents=True, exist_ok=True)
+    path = results_dir / f"{stem}.jsonl"
     # Guarantee we never overwrite an earlier run in the same second.
     suffix = 2
     while path.exists():
-        path = EVAL_DIR / f"{stem}_{suffix}.jsonl"
+        path = results_dir / f"{stem}_{suffix}.jsonl"
         suffix += 1
 
     run_record = {

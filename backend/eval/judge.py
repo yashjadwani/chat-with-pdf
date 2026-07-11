@@ -58,33 +58,48 @@ JUDGE_SYSTEM_PROMPT = (
 )
 
 
+def _extract_score(text: str, key: str) -> int | None:
+    """Pull a 1-5 score for `key` out of free text (fallback when JSON fails).
+
+    Matches forms like `"faithfulness": 5`, `Faithfulness = 4`,
+    `**Relevance:** 3/5` — the key, then up to a few non-digit chars, then the
+    first 1-5 digit. Bounded so it won't wander into unrelated numbers.
+    """
+    match = re.search(rf"{key}\b\D{{0,15}}?([1-5])", text, re.IGNORECASE)
+    return int(match.group(1)) if match else None
+
+
 def parse_judge_json(raw: str) -> dict | None:
     text = raw.strip()
     fenced = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
     if fenced:
-        text = fenced.group(1)
+        candidate = fenced.group(1)
     else:
         brace = re.search(r"\{.*\}", text, re.DOTALL)
-        if brace:
-            text = brace.group(0)
-    try:
-        verdict = json.loads(text)
-    except json.JSONDecodeError:
-        return None
+        candidate = brace.group(0) if brace else text
 
     try:
+        verdict = json.loads(candidate)
         faithfulness = int(verdict["faithfulness"])
         relevance = int(verdict["relevance"])
-    except (KeyError, TypeError, ValueError):
-        return None
+        claims = verdict.get("unsupported_claims")
+        claims = claims if isinstance(claims, list) else []
+    except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+        # Fallback: regex the two integer scores straight out of the raw text.
+        # (Can't reliably recover the claims list this way, so leave it empty.)
+        faithfulness = _extract_score(raw, "faithfulness")
+        relevance = _extract_score(raw, "relevance")
+        claims = []
+        if faithfulness is None or relevance is None:
+            return None
+
     if not (1 <= faithfulness <= 5 and 1 <= relevance <= 5):
         return None
 
-    claims = verdict.get("unsupported_claims")
     return {
         "faithfulness": faithfulness,
         "relevance": relevance,
-        "unsupported_claims": claims if isinstance(claims, list) else [],
+        "unsupported_claims": claims,
     }
 
 

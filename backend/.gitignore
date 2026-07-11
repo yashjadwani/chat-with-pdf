@@ -21,6 +21,7 @@ chroma_data/
 .chroma/
 rag_debug.log
 memory.json
+eval/results_*.jsonl
 *.sqlite3
 *.db
 

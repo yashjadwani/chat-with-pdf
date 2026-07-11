@@ -239,10 +239,11 @@ def ingest_document(document_id: str, user_id: str, filename: str) -> None:
             document_id=document_id,
             language=language,
             total_pages=total_pages,
+            user_id=user_id,
         )
         logger.info(f"Ingestion complete for document {document_id}")
 
     except Exception as e:
         logger.error(f"Ingestion failed for {document_id}: {str(e)}")
-        doc_db.set_failed(document_id=document_id, error_message=str(e))
+        doc_db.set_failed(document_id=document_id, error_message=str(e), user_id=user_id)
         raise

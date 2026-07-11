@@ -8,7 +8,6 @@ class Settings(BaseSettings):
     supabase_service_role_key: str
     supabase_jwt_audience: str = "authenticated"
     supabase_jwt_issuer: str = ""
-    app_enviorment:str
 
     # OpenRouter
     openrouter_api_key: str
@@ -22,7 +21,12 @@ class Settings(BaseSettings):
     opencode_model: str = "deepseek-v4-flash-free"
     chat_answer_max_tokens: int = 1000
     document_summary_max_tokens: int = 1500
-    
+
+    # Gemini (2nd answer-generation fallback; disabled unless a key is set)
+    gemini_api_key: str = ""
+    gemini_base_url: str = "https://generativelanguage.googleapis.com/v1beta/openai"
+    gemini_model: str = "gemini-2.5-flash"
+
     # Embedding
     embedding_model: str = "intfloat/multilingual-e5-small"
 
@@ -67,6 +71,10 @@ class Settings(BaseSettings):
     langchain_api_key: str = ""
     langchain_project: str = "chat-with-pdf"
 
+    # Rate limiting (per user, fixed window; in-memory per process)
+    chat_rate_limit_per_minute: int = 10
+    upload_rate_limit_per_minute: int = 2
+
     # App
     app_env: str = "development"
     run_ingestion_on_modal: bool = False
@@ -74,6 +82,10 @@ class Settings(BaseSettings):
     modal_ingestion_function_name: str = "run_ingestion"
     modal_chroma_volume_name: str = "chroma-data"
     allowed_origins: str = "http://localhost:5173"
+    # Optional regex for additional allowed origins (e.g. preview deploys).
+    # Empty by default — set an explicit, narrow pattern in production rather
+    # than trusting every subdomain of a shared host.
+    cors_allow_origin_regex: str = ""
     max_file_size_mb: int = 50
 
     model_config = SettingsConfigDict(

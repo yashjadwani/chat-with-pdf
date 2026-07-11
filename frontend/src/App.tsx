@@ -356,6 +356,7 @@ export function App() {
 
   return (
     <main className="workspace" data-theme={theme}>
+      <a href="#main-content" className="skip-link">Skip to content</a>
       <header className="mobile-app-bar" aria-label="Mobile app navigation">
         <button
           className="mobile-drawer-toggle"
@@ -398,7 +399,7 @@ export function App() {
         <div className="side-heading">
           <div>
             <span className="eyebrow">Library</span>
-            <h1>Documents</h1>
+            <h2>Documents</h2>
           </div>
           <Button
             variant="quiet"
@@ -440,7 +441,7 @@ export function App() {
         <CopyrightNotice variant="sidebar" />
       </aside>
 
-      <section className="main-stage">
+      <section className="main-stage" id="main-content">
         <header className="stage-header">
           <div>
             <span className="eyebrow">Document answers</span>

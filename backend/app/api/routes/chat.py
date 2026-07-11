@@ -9,6 +9,7 @@ from langsmith import traceable
 
 from app.api.deps import get_current_user_id
 from app.core.config import get_settings
+from app.core.rate_limit import rate_limiter
 from app.db.chroma import ChromaStore, reload_modal_volume_if_needed
 from app.db.supabase import ApiLogDB, ChatDB, DocumentDB
 from app.models.chat import ChatHistoryResponse, ChatQueryRequest, ChatQueryResponse
@@ -27,6 +28,7 @@ from app.services.memory import (
 )
 from app.services.query_expansion import expand_query_for_retrieval, format_recent_history
 from app.services.retrieval import build_acronym_expanded_query, filter_by_query_terms, retrieve_chunks
+from app.services.security_guard import REFUSAL_MESSAGE, check_question
 from app.services.summary import generate_summary_answer, get_summary_citations, is_summary_question
 
 logger = logging.getLogger(__name__)
@@ -229,7 +231,7 @@ async def _run_rag_pipeline(
 @router.post("/query", response_model=ChatQueryResponse)
 async def query_document(
     request: ChatQueryRequest,
-    user_id: str = Depends(get_current_user_id),
+    user_id: str = Depends(rate_limiter(settings.chat_rate_limit_per_minute)),
 ):
     """Query a document with a natural language question."""
     await _get_ready_document(document_id=request.document_id, user_id=user_id)
@@ -238,6 +240,31 @@ async def query_document(
         user_id=user_id,
         document_id=request.document_id,
     )
+
+    verdict = check_question(question)
+    if verdict.action == "block":
+        logger.warning(
+            "Security guard blocked query (%s) user=%s doc=%s", verdict.category, user_id, request.document_id
+        )
+        save_exchange(
+            session_id=session["session_id"],
+            user_id=user_id,
+            document_id=request.document_id,
+            question=question,
+            answer=REFUSAL_MESSAGE,
+            citations=[],
+        )
+        return ChatQueryResponse(
+            answer=REFUSAL_MESSAGE,
+            citations=[],
+            model_used="security-guard",
+            document_id=request.document_id,
+            question=question,
+        )
+    if verdict.action == "flag":
+        logger.warning(
+            "Security guard flagged query (%s) user=%s doc=%s", verdict.category, user_id, request.document_id
+        )
 
     try:
         answer, citations, model_used = await _run_rag_pipeline(
@@ -270,7 +297,7 @@ async def query_document(
 @router.post("/stream")
 async def stream_document_query(
     request: ChatQueryRequest,
-    user_id: str = Depends(get_current_user_id),
+    user_id: str = Depends(rate_limiter(settings.chat_rate_limit_per_minute)),
 ):
     """Stream an answer for a document query as server-sent events."""
     await _get_ready_document(document_id=request.document_id, user_id=user_id)
@@ -280,6 +307,35 @@ async def stream_document_query(
         document_id=request.document_id,
     )
     session_id = session["session_id"]
+
+    verdict = check_question(question)
+    if verdict.action == "block":
+        logger.warning(
+            "Security guard blocked stream query (%s) user=%s doc=%s", verdict.category, user_id, request.document_id
+        )
+        save_exchange(
+            session_id=session_id,
+            user_id=user_id,
+            document_id=request.document_id,
+            question=question,
+            answer=REFUSAL_MESSAGE,
+            citations=[],
+        )
+
+        async def refusal_events():
+            yield _sse("citations", [])
+            yield _sse("token", REFUSAL_MESSAGE)
+            yield _sse("done", {
+                "model_used": "security-guard",
+                "document_id": request.document_id,
+                "question": question,
+            })
+
+        return StreamingResponse(refusal_events(), media_type="text/event-stream")
+    if verdict.action == "flag":
+        logger.warning(
+            "Security guard flagged stream query (%s) user=%s doc=%s", verdict.category, user_id, request.document_id
+        )
 
     expansion = await _expand_query_for_session(
         question=question,
@@ -306,6 +362,8 @@ async def stream_document_query(
     async def events():
         answer_parts = []
         raw_events = []
+        model_used = settings.opencode_model
+        provider_used = "opencode"
         started_at = time.perf_counter()
         request_metadata = {
             "question_length": len(question),
@@ -322,18 +380,22 @@ async def stream_document_query(
         raw_events.append({"event": "citations", "data": citation_payload})
         yield _sse("citations", citation_payload)
         try:
-            async for token in generate_answer_stream(
+            async for kind, value in generate_answer_stream(
                 question=question,
                 citations=citations,
                 conversation_history=conversation_history,
             ):
-                answer_parts.append(token)
-                raw_events.append({"event": "token", "content": token})
-                yield _sse("token", token)
+                if kind == "model":
+                    model_used = value
+                    provider_used = value.split("/", 1)[0]
+                    continue
+                answer_parts.append(value)
+                raw_events.append({"event": "token", "content": value})
+                yield _sse("token", value)
 
             answer = "".join(answer_parts)
             done_payload = {
-                "model_used": settings.opencode_model,
+                "model_used": model_used,
                 "document_id": request.document_id,
                 "question": question,
             }
@@ -348,7 +410,8 @@ async def stream_document_query(
             )
             ApiLogDB().insert_log(
                 purpose="chat_answer",
-                model=settings.opencode_model,
+                model=model_used,
+                provider=provider_used,
                 status="success",
                 user_id=user_id,
                 document_id=request.document_id,
@@ -369,7 +432,8 @@ async def stream_document_query(
             raw_events.append({"event": "error", "data": str(exc)})
             ApiLogDB().insert_log(
                 purpose="chat_answer",
-                model=settings.opencode_model,
+                model=model_used,
+                provider=provider_used,
                 status="error",
                 user_id=user_id,
                 document_id=request.document_id,
@@ -386,7 +450,8 @@ async def stream_document_query(
             answer = "".join(answer_parts)
             ApiLogDB().insert_log(
                 purpose="chat_answer",
-                model=settings.opencode_model,
+                model=model_used,
+                provider=provider_used,
                 status="error",
                 user_id=user_id,
                 document_id=request.document_id,

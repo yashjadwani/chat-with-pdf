@@ -1,8 +1,10 @@
+import re
 import uuid
 import logging
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks, status
 from app.api.deps import get_current_user_id
 from app.core.config import get_settings
+from app.core.rate_limit import rate_limiter
 from app.db.supabase import DocumentDB, StorageDB
 from app.db.chroma import ChromaStore, reload_modal_volume_if_needed
 from app.models.document import (
@@ -19,6 +21,23 @@ settings = get_settings()
 router = APIRouter(prefix="/documents", tags=["documents"])
 
 ALLOWED_CONTENT_TYPES = {"application/pdf"}
+PDF_MAGIC = b"%PDF-"
+
+
+def looks_like_pdf(file_bytes: bytes) -> bool:
+    """Verify the actual bytes start with the PDF signature (some files carry
+    a small leading BOM/whitespace), independent of the spoofable content-type."""
+    return file_bytes[:1024].lstrip(b"\x00\r\n\t ").startswith(PDF_MAGIC)
+
+
+def sanitize_filename(filename: str | None, fallback: str) -> str:
+    """Strip path components, control chars, and unsafe characters from an
+    uploaded filename before it is used in a storage key or persisted."""
+    name = (filename or "").replace("\\", "/").split("/")[-1]
+    name = re.sub(r"[\x00-\x1f]", "", name)
+    name = re.sub(r"[^A-Za-z0-9._ -]", "_", name)
+    name = name[:200].strip(" .")
+    return name or fallback
 
 
 def queue_ingestion(
@@ -65,7 +84,7 @@ def queue_ingestion(
 async def upload_document(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
-    user_id: str = Depends(get_current_user_id),
+    user_id: str = Depends(rate_limiter(settings.upload_rate_limit_per_minute)),
 ):
     """
     Upload a PDF document.
@@ -96,8 +115,14 @@ async def upload_document(
             detail="Uploaded file is empty.",
         )
 
+    if not looks_like_pdf(file_bytes):
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail="File does not appear to be a valid PDF.",
+        )
+
     document_id = str(uuid.uuid4())
-    filename = file.filename or f"{document_id}.pdf"
+    filename = sanitize_filename(file.filename, fallback=f"{document_id}.pdf")
     storage_path = f"{user_id}/{document_id}/{filename}"
 
     doc_db = DocumentDB()

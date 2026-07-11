@@ -44,14 +44,14 @@ class DocumentDB:
         self,
         document_id: str,
         updates: dict,
+        user_id: str | None = None,
     ) -> dict:
-        """Update fields on a document record."""
-        response = (
-            self.client.table(self.table)
-            .update(updates)
-            .eq("document_id", document_id)
-            .execute()
-        )
+        """Update fields on a document record. Pass user_id to scope the write
+        to its owner (defense-in-depth against the service role bypassing RLS)."""
+        query = self.client.table(self.table).update(updates).eq("document_id", document_id)
+        if user_id is not None:
+            query = query.eq("user_id", user_id)
+        response = query.execute()
         return response.data[0] if response.data else {}
 
     def set_ready(
@@ -59,6 +59,7 @@ class DocumentDB:
         document_id: str,
         language: str,
         total_pages: int,
+        user_id: str | None = None,
     ) -> dict:
         return self.update_document(
             document_id,
@@ -67,15 +68,17 @@ class DocumentDB:
                 "language": language,
                 "total_pages": total_pages,
             },
+            user_id=user_id,
         )
 
-    def set_failed(self, document_id: str, error_message: str) -> dict:
+    def set_failed(self, document_id: str, error_message: str, user_id: str | None = None) -> dict:
         return self.update_document(
             document_id,
             {
                 "status": DocumentStatus.failed.value,
                 "error_message": error_message,
             },
+            user_id=user_id,
         )
 
     def get_document(self, document_id: str, user_id: str) -> Optional[dict]:
@@ -156,18 +159,34 @@ class ChatDB:
         if existing.data:
             return existing.data[0]
 
-        created = (
-            self.client.table("chat_sessions")
-            .insert(
-                {
-                    "user_id": user_id,
-                    "document_id": document_id,
-                    "is_default": True,
-                }
+        try:
+            created = (
+                self.client.table("chat_sessions")
+                .insert(
+                    {
+                        "user_id": user_id,
+                        "document_id": document_id,
+                        "is_default": True,
+                    }
+                )
+                .execute()
             )
-            .execute()
-        )
-        return created.data[0]
+            return created.data[0]
+        except Exception:
+            # A concurrent request won the race and inserted the default session
+            # (the partial unique index rejects the second insert). Re-select it.
+            retry = (
+                self.client.table("chat_sessions")
+                .select("*")
+                .eq("user_id", user_id)
+                .eq("document_id", document_id)
+                .eq("is_default", True)
+                .limit(1)
+                .execute()
+            )
+            if retry.data:
+                return retry.data[0]
+            raise
 
     def update_summary(
         self,
@@ -244,6 +263,7 @@ class ApiLogDB:
         purpose: str,
         model: str,
         status: str,
+        provider: str = "opencode",
         user_id: str | None = None,
         document_id: str | None = None,
         session_id: str | None = None,
@@ -265,7 +285,7 @@ class ApiLogDB:
                     "document_id": document_id,
                     "session_id": session_id,
                     "purpose": purpose,
-                    "provider": "opencode",
+                    "provider": provider,
                     "model": model,
                     "status": status,
                     "user_prompt": user_prompt,

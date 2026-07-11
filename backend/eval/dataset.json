@@ -1,0 +1,203 @@
+{
+  "cases": [
+  {
+    "id": "iso27001-001",
+    "document_id": "5c5052f3-4bf1-45cc-8cfe-7e4ce1d15b08",
+    "question": "Which standard provides the terms and definitions used in ISO/IEC 27001?",
+    "relevant_pages": [7],
+    "answer_substrings": ["ISO/IEC 27000"]
+  },
+  {
+    "id": "iso27001-002",
+    "document_id": "5c5052f3-4bf1-45cc-8cfe-7e4ce1d15b08",
+    "question": "Can an organization exclude any requirement from Clauses 4 through 10 while claiming conformity?",
+    "relevant_pages": [7],
+    "answer_substrings": ["not acceptable"]
+  },
+  {
+    "id": "iso27001-003",
+    "document_id": "5c5052f3-4bf1-45cc-8cfe-7e4ce1d15b08",
+    "question": "Which three aspects must an organization consider when determining the scope of the information security management system?",
+    "relevant_pages": [8],
+    "answer_substrings": [
+      "external and internal issues",
+      "requirements",
+      "interfaces and dependencies"
+    ]
+  },
+  {
+    "id": "iso27001-004",
+    "document_id": "5c5052f3-4bf1-45cc-8cfe-7e4ce1d15b08",
+    "question": "Which clause requires the organization to establish and maintain information security risk criteria?",
+    "relevant_pages": [10],
+    "answer_substrings": [
+      "6.1.2",
+      "risk criteria"
+    ]
+  },
+  {
+    "id": "iso27001-005",
+    "document_id": "5c5052f3-4bf1-45cc-8cfe-7e4ce1d15b08",
+    "question": "What four items must be included in the Statement of Applicability?",
+    "relevant_pages": [10,11],
+    "answer_substrings": [
+      "necessary controls",
+      "justification for their inclusion",
+      "implemented or not",
+      "justification for excluding"
+    ]
+  },
+  {
+    "id": "iso27001-006",
+    "document_id": "5c5052f3-4bf1-45cc-8cfe-7e4ce1d15b08",
+    "question": "Which Annex is referenced when verifying that no necessary information security controls have been omitted?",
+    "relevant_pages": [10],
+    "answer_substrings": [
+      "Annex A"
+    ]
+  },
+  {
+    "id": "iso27001-007",
+    "document_id": "5c5052f3-4bf1-45cc-8cfe-7e4ce1d15b08",
+    "question": "According to the standard, what documented information must be retained after performing an information security risk treatment process?",
+    "relevant_pages": [11],
+    "answer_substrings": [
+      "documented information",
+      "risk treatment process"
+    ]
+  },
+  {
+    "id": "iso27001-008",
+    "document_id": "5c5052f3-4bf1-45cc-8cfe-7e4ce1d15b08",
+    "question": "Which metadata examples are given for identifying documented information when it is created or updated?",
+    "relevant_pages": [13],
+    "answer_substrings": [
+      "title",
+      "date",
+      "author",
+      "reference number"
+    ]
+  },
+  {
+    "id": "iso27001-009",
+    "document_id": "5c5052f3-4bf1-45cc-8cfe-7e4ce1d15b08",
+    "question": "When should information security risk assessments be performed according to Clause 8.2?",
+    "relevant_pages": [14],
+    "answer_substrings": [
+      "planned intervals",
+      "significant changes"
+    ]
+  },
+  {
+    "id": "iso27001-010",
+    "document_id": "5c5052f3-4bf1-45cc-8cfe-7e4ce1d15b08",
+    "question": "What six determinations must an organization make for monitoring, measurement, analysis and evaluation?",
+    "relevant_pages": [14],
+    "answer_substrings": [
+      "what needs to be monitored",
+      "methods",
+      "when",
+      "who",
+      "analysed",
+      "evaluated"
+    ]
+  },
+  {
+    "id": "iso27001-011",
+    "document_id": "5c5052f3-4bf1-45cc-8cfe-7e4ce1d15b08",
+    "question": "What are the two conditions that internal audits must verify about the information security management system?",
+    "relevant_pages": [14,15],
+    "answer_substrings": [
+      "conforms",
+      "effectively implemented and maintained"
+    ]
+  },
+  {
+    "id": "iso27001-012",
+    "document_id": "5c5052f3-4bf1-45cc-8cfe-7e4ce1d15b08",
+    "question": "Which clause requires top management to review the information security management system at planned intervals?",
+    "relevant_pages": [15],
+    "answer_substrings": [
+      "9.3.1"
+    ]
+  },
+  {
+    "id": "iso27001-013",
+    "document_id": "5c5052f3-4bf1-45cc-8cfe-7e4ce1d15b08",
+    "question": "Which Annex A control requires the organization to maintain an inventory of information and associated assets?",
+    "relevant_pages": [17],
+    "answer_substrings": [
+      "5.9",
+      "Inventory of information"
+    ]
+  },
+  {
+    "id": "iso27001-014",
+    "document_id": "5c5052f3-4bf1-45cc-8cfe-7e4ce1d15b08",
+    "question": "Which Annex A control specifically addresses cloud services?",
+    "relevant_pages": [18],
+    "answer_substrings": [
+      "5.23",
+      "cloud services"
+    ]
+  },
+  {
+    "id": "iso27001-015",
+    "document_id": "5c5052f3-4bf1-45cc-8cfe-7e4ce1d15b08",
+    "question": "Which control requires secure authentication technologies and procedures?",
+    "relevant_pages": [22],
+    "answer_substrings": [
+      "8.5",
+      "Secure authentication"
+    ]
+  },
+  {
+    "id": "iso27001-016",
+    "document_id": "5c5052f3-4bf1-45cc-8cfe-7e4ce1d15b08",
+    "question": "Which clause discusses synchronization of clocks used by information processing systems?",
+    "relevant_pages": [22],
+    "answer_substrings": [
+      "8.17",
+      "Clock synchronization"
+    ]
+  },
+  {
+    "id": "iso27001-017",
+    "document_id": "5c5052f3-4bf1-45cc-8cfe-7e4ce1d15b08",
+    "question": "How many top-level categories of controls are defined in Annex A?",
+    "relevant_pages": [17,20,21],
+    "answer_substrings": [
+      "4",
+      "Organizational",
+      "People",
+      "Physical",
+      "Technological"
+    ]
+  },
+  {
+    "id": "iso27001-018",
+    "document_id": "5c5052f3-4bf1-45cc-8cfe-7e4ce1d15b08",
+    "question": "Which clause requires comparing selected controls against Annex A before producing the Statement of Applicability?",
+    "relevant_pages": [10],
+    "answer_substrings": [
+      "6.1.3",
+      "compare",
+      "Annex A"
+    ]
+  },
+  {
+    "id": "iso27001-neg-001",
+    "document_id": "5c5052f3-4bf1-45cc-8cfe-7e4ce1d15b08",
+    "question": "Which encryption algorithm does ISO/IEC 27001 recommend for protecting confidential information?",
+    "relevant_pages": [],
+    "answer_substrings": []
+  },
+  {
+    "id": "iso27001-neg-002",
+    "document_id": "5c5052f3-4bf1-45cc-8cfe-7e4ce1d15b08",
+    "question": "Which cloud provider does ISO/IEC 27001 recommend for implementing an information security management system?",
+    "relevant_pages": [],
+    "answer_substrings": []
+  }
+]
+}

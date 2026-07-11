@@ -1,6 +1,29 @@
 # PDF Chat
 
-PDF Chat is a full-stack RAG application for uploading PDFs, asking questions in plain English, and getting answers grounded in the uploaded document with page references.
+[![CI](https://github.com/yashjadwani/chat-with-pdf/actions/workflows/ci.yml/badge.svg)](https://github.com/yashjadwani/chat-with-pdf/actions/workflows/ci.yml)
+
+I built this as a production-shaped RAG system for grounded question answering
+over PDFs. The part I care most about is the retrieval pipeline: hybrid dense +
+lexical search, RRF fusion, two-stage cross-encoder reranking, and neighbor-chunk
+expansion — which I tuned against the constant tension between answer quality and
+latency. I kept everything citation-first: answers point back to the exact pages
+they came from.
+
+**Engineering highlights**
+
+- Hybrid retrieval: dense (E5) + BM25 fused with Reciprocal Rank Fusion, so
+  incompatible raw scores are never compared directly.
+- Two-stage BGE cross-encoder reranking with neighbor-chunk expansion between
+  the passes.
+- LLM query expansion (contextual / lexical / dense rewrites) with graceful
+  fallback on timeout or invalid JSON.
+- Latency work throughout: in-memory BM25 payloads, a semantic retrieval cache,
+  and background reranker warm-up on startup.
+- Reproducible evaluation: a dense-only vs. hybrid retrieval ablation plus an
+  LLM-as-judge faithfulness check on answers (see [Evaluation](#evaluation)).
+- Unit-tested retrieval math (RRF fusion, neighbor expansion, metrics) running
+  in CI on every push.
+- Full observability: per-call LLM logs and per-request timing logs.
 
 ![PDF Chat architecture](docs/project-architecture.svg)
 
@@ -151,6 +174,69 @@ When chat history grows beyond the configured threshold, older turns are summari
 - The frontend also logs request timing in the browser console with the same request id.
 - The backend warms the BGE reranker in the background on startup so the first user query is less likely to pay the model load cost.
 
+## Evaluation
+
+I measure retrieval quality with a small gold set rather than by eyeballing
+logs. `backend/eval/` runs each question through two retrievers and reports
+`Hit@k`, `MRR@k`, and page `Recall@k` for both:
+
+- **baseline** — naive dense-only vector search.
+- **pipeline** — the full hybrid retriever (dense + BM25 → RRF → BGE rerank →
+  neighbor expansion → BGE rerank).
+
+The comparison is the whole point for me: it shows whether the extra retrieval
+machinery earns its latency versus plain dense search.
+
+```bash
+cd backend
+python -m eval.run --k 5
+```
+
+Results on the local gold set (7 cases, one 34-page document):
+
+| Metric | Dense-only | Hybrid pipeline |
+| --- | --- | --- |
+| Hit@5 | 1.00 | 1.00 |
+| MRR@5 | 0.93 | 0.93 |
+| Recall@5 | 1.00 | 1.00 |
+
+My honest takeaway right now: on this small factual gold set both retrievers
+saturate, so the extra hybrid machinery isn't differentiating yet — the per-case
+rows show the reranker helping on one question and hurting on another. My next
+step is harder cases (paraphrased questions with no lexical overlap, multi-page
+answers) where dense-only should start missing.
+
+Answer quality on the same set: faithfulness 5.0/5, relevance 5.0/5, 0/6
+answers with unsupported claims (1 of 7 judge outputs unparseable — LLM-as-judge
+is noisy, and I made the parser refuse to guess).
+
+I added a second layer that evaluates the **answer** rather than the retrieval:
+`eval/judge.py` runs each question through the real answer path and has an LLM
+judge score faithfulness (are all claims supported by the retrieved context?)
+and relevance (1–5 each), quoting any unsupported claims verbatim.
+
+```bash
+python -m eval.judge --k 5
+```
+
+Building a gold set and the metric definitions are documented in
+[`backend/eval/README.md`](backend/eval/README.md).
+
+## Testing
+
+My unit tests cover the deterministic core of the pipeline — RRF fusion math,
+neighbor-chunk expansion, acronym expansion, query-term filtering, eval
+metrics, and judge-output parsing:
+
+```bash
+cd backend
+pip install -r requirements-dev.txt
+python -m pytest tests/ -v
+```
+
+GitHub Actions runs the backend tests and a frontend type-check + build on
+every push (`.github/workflows/ci.yml`).
+
 ## Local Development
 
 Backend:
@@ -198,8 +284,11 @@ chat-with-pdf/
       db/
       models/
       services/
+    eval/
+    tests/
     modal_app.py
     requirements.txt
+    requirements-dev.txt
     schema.sql
   frontend/
     src/

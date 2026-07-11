@@ -63,16 +63,17 @@ app = FastAPI(
     openapi_url=None if is_production else "/openapi.json",
 )
 
-# CORS
-app.add_middleware(
-    CORSMiddleware,
+# CORS — explicit allowlist; optional narrow regex for preview deploys only.
+cors_kwargs = dict(
     allow_origins=settings.allowed_origins_list,
-    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["X-Request-Id", "X-Server-Duration-Ms", "X-Client-To-Backend-Ms"],
 )
+if settings.cors_allow_origin_regex:
+    cors_kwargs["allow_origin_regex"] = settings.cors_allow_origin_regex
+app.add_middleware(CORSMiddleware, **cors_kwargs)
 
 @app.middleware("http")
 async def log_request_timing(request: Request, call_next):
@@ -148,7 +149,7 @@ app.include_router(chat.router)
 async def health():
     return {
         "status": "ok",
-        "env": settings.app_enviorment,
+        "env": settings.app_env,
         "version": "1.0.0",
     }
 

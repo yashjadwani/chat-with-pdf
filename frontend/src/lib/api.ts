@@ -94,7 +94,7 @@ export async function deleteDocument(documentId: string) {
   });
 }
 
-export async function askDocument(documentId: string, question: string) {
+export async function askDocument(documentId: string, question: string, signal?: AbortSignal) {
   return request<{
     answer: string;
     citations: Citation[];
@@ -103,7 +103,8 @@ export async function askDocument(documentId: string, question: string) {
     question: string;
   }>("/chat/query", {
     method: "POST",
-    body: JSON.stringify({ document_id: documentId, question })
+    body: JSON.stringify({ document_id: documentId, question }),
+    signal
   });
 }
 

@@ -28,6 +28,8 @@ export function ChatWindow({
   const messagesRef = useRef<HTMLDivElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const autoSummaryStartedRef = useRef<string | null>(null);
+  const sendingRef = useRef(false);
+  const sendAbortRef = useRef<AbortController | null>(null);
   const suggestions = useMemo(() => getPromptSuggestions(document), [document]);
   const overviewMessage = getOverviewMessage(messages);
   const visibleMessages = overviewMessage ? messages.slice(2) : messages;
@@ -75,6 +77,14 @@ export function ChatWindow({
     };
   }, [document?.document_id, document?.status]);
 
+  useEffect(() => {
+    // Abort any in-flight answer when the open document changes or the panel unmounts.
+    return () => {
+      sendAbortRef.current?.abort();
+      sendingRef.current = false;
+    };
+  }, [document.document_id]);
+
   async function clearHistory() {
     setError("");
     try {
@@ -87,6 +97,9 @@ export function ChatWindow({
   }
 
   async function send(question: string) {
+    if (sendingRef.current) return; // block re-entrant double-submits within the state-flush window
+    sendingRef.current = true;
+
     const mode = getAnswerMode(question);
     const userMessage = makeMessage("user", question);
     const assistantId = crypto.randomUUID();
@@ -99,8 +112,10 @@ export function ChatWindow({
     setLoadingAnswer(true);
     setError("");
 
+    const controller = new AbortController();
+    sendAbortRef.current = controller;
     try {
-      const response = await askDocument(document.document_id, question);
+      const response = await askDocument(document.document_id, question, controller.signal);
       setMessages((current) =>
         current.map((message) =>
           message.id === assistantId
@@ -109,9 +124,12 @@ export function ChatWindow({
         )
       );
     } catch (chatError) {
+      if (controller.signal.aborted) return; // aborted on document switch/unmount — drop silently
       setMessages((current) => current.filter((message) => message.id !== assistantId));
       setError(chatError instanceof Error ? chatError.message : "Chat failed.");
     } finally {
+      if (sendAbortRef.current === controller) sendAbortRef.current = null;
+      sendingRef.current = false;
       setLoadingAnswer(false);
     }
   }

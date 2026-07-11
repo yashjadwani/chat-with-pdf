@@ -17,7 +17,7 @@
   --paper-warm: #fff4e2;
   --ink: #2f3148;
   --ink-soft: #55576f;
-  --muted: #817d91;
+  --muted: #605c6e;
   --line: #e5d9cd;
   --line-strong: #d8c8bb;
   --blue: #d7e5f5;
@@ -47,6 +47,24 @@
 
 * {
   box-sizing: border-box;
+}
+
+.skip-link {
+  position: absolute;
+  left: 12px;
+  top: -60px;
+  z-index: 100;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--brand-600);
+  color: #fffaf2;
+  font-weight: 800;
+  text-decoration: none;
+  transition: top 160ms ease;
+}
+
+.skip-link:focus {
+  top: 12px;
 }
 
 body {
@@ -99,7 +117,7 @@ textarea:focus-visible {
   --paper-warm: #2a2a40;
   --ink: #e8e0ec;
   --ink-soft: #c5bdcf;
-  --muted: #9f96ad;
+  --muted: #ada5bb;
   --line: rgba(255, 255, 255, 0.1);
   --line-strong: rgba(255, 255, 255, 0.16);
   --blue: rgba(134, 173, 214, 0.2);
@@ -194,7 +212,7 @@ textarea:focus-visible {
 }
 
 [data-theme="dark"] .stage-header h1,
-[data-theme="dark"] .side-heading h1,
+[data-theme="dark"] .side-heading h2,
 [data-theme="dark"] .chat-header h2,
 [data-theme="dark"] .form-heading h1,
 [data-theme="dark"] .auth-copy h1 {
@@ -440,7 +458,7 @@ textarea:focus-visible {
 
 .auth-copy h1,
 .stage-header h1,
-.side-heading h1,
+.side-heading h2,
 .form-heading h1,
 .chat-header h2 {
   margin: 0;
@@ -1051,7 +1069,7 @@ textarea:focus {
   margin: 24px 0 16px;
 }
 
-.side-heading h1,
+.side-heading h2,
 .stage-header h1 {
   color: var(--ink);
 }
@@ -1901,6 +1919,7 @@ textarea:focus {
 .message-content p {
   margin: 0;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .message-content strong {

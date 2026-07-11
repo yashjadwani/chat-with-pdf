@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import type { ChatMessage } from "../../types";
 
 function renderInlineMarkdown(text: string): ReactNode[] {
@@ -62,7 +62,7 @@ export function renderMessageContent(content: string) {
           <thead>
             <tr>
               {headers.map((header, index) => (
-                <th key={index}>{renderInlineMarkdown(header)}</th>
+                <th key={index} scope="col">{renderInlineMarkdown(header)}</th>
               ))}
             </tr>
           </thead>
@@ -112,25 +112,27 @@ export function renderMessageContent(content: string) {
   return blocks;
 }
 
-export function MessageBubble({
+export const MessageBubble = memo(function MessageBubble({
   message,
   loadingLabel = "Answer is loading"
 }: {
   message: ChatMessage;
   loadingLabel?: string;
 }) {
+  const content = useMemo(() => renderMessageContent(message.content), [message.content]);
+
   return (
     <div className={`message-row ${message.role}`}>
       <div className="message-bubble">
         {message.role === "assistant" && !message.content ? (
           <AnswerLoading loadingLabel={loadingLabel} />
         ) : (
-          <div className="message-content">{renderMessageContent(message.content)}</div>
+          <div className="message-content">{content}</div>
         )}
       </div>
     </div>
   );
-}
+});
 
 const waitingMessages = [
   "Following the strongest clues",
@@ -158,9 +160,9 @@ export function AnswerLoading({ loadingLabel }: { loadingLabel: string }) {
         <i />
         <b />
       </span>
-      <span className="answer-loading-copy" aria-live="polite">
-        <strong>{loadingLabel}</strong>
-        <span key={messageIndex}>{waitingMessages[messageIndex]}...</span>
+      <span className="answer-loading-copy">
+        <strong aria-live="polite">{loadingLabel}</strong>
+        <span key={messageIndex} aria-hidden="true">{waitingMessages[messageIndex]}...</span>
       </span>
     </div>
   );

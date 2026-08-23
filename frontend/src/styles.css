@@ -2590,3 +2590,150 @@ textarea:focus {
     max-width: none;
   }
 }
+
+.site-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 12px;
+  border-top: 1px solid var(--line);
+  background: var(--panel-bg);
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+}
+
+.auth-page > .site-footer {
+  grid-column: 1 / -1;
+}
+
+.site-footer-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.site-footer-logo {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  background: var(--logo-bg);
+  color: var(--logo-ink);
+}
+
+.site-footer-wordmark {
+  color: var(--ink);
+  font-weight: 850;
+  letter-spacing: 0.01em;
+}
+
+.site-footer-wordmark-accent {
+  color: var(--brand-600);
+}
+
+[data-theme="dark"] .site-footer-wordmark-accent {
+  color: var(--lilac-strong);
+}
+
+.site-footer-version {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--chip-bg);
+  color: var(--ink-soft);
+  font-size: 0.72rem;
+  font-weight: 750;
+  letter-spacing: 0.02em;
+}
+
+.site-footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+
+.site-footer-box {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--control-bg);
+  color: var(--ink-soft);
+  font-size: inherit;
+  font-weight: 700;
+  text-decoration: none;
+  transition: background 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+
+.site-footer-box:hover {
+  border-color: var(--line-strong);
+  background: var(--control-hover);
+  color: var(--ink);
+}
+
+.site-footer-text-link {
+  padding: 4px 2px;
+  border: 0;
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: inherit;
+  font-weight: 650;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.site-footer-text-link:hover {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 0.16em;
+}
+
+.site-footer-dialog {
+  width: min(460px, calc(100vw - 36px));
+  margin: auto;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel-bg);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+}
+
+.site-footer-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.7);
+}
+
+.site-footer-dialog h2 {
+  margin: 0 0 10px;
+  font-size: 1.1rem;
+}
+
+.site-footer-dialog p {
+  margin: 0 0 12px;
+  color: var(--ink-soft);
+  font-size: 0.92rem;
+  line-height: 1.6;
+}
+
+@media (min-width: 640px) {
+  .site-footer {
+    padding: 16px 24px;
+  }
+
+  .site-footer-links {
+    justify-content: flex-end;
+  }
+}
+
+/* .auth-art becomes display:contents here, so the footer joins the page grid
+   alongside its ordered siblings and needs to be placed after them. */
+@media (max-width: 768px) {
+  .auth-page > .site-footer {
+    order: 8;
+  }
+}

@@ -26,6 +26,7 @@ import { UploadButton } from "./components/dashboard/UploadButton";
 import { DocumentList } from "./components/dashboard/DocumentList";
 import { ChatWindow } from "./components/chat/ChatWindow";
 import { Button } from "./components/ui/Button";
+import { SiteFooter } from "./components/ui/SiteFooter";
 import { Spinner } from "./components/ui/Spinner";
 
 type Theme = "light" | "dark";
@@ -350,6 +351,8 @@ export function App() {
             />
           )}
         </section>
+
+        <SiteFooter />
       </main>
     );
   }

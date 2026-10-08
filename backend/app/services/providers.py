@@ -40,14 +40,14 @@ def get_chat_providers() -> list[dict]:
             "base_url": settings.openrouter_base_url,
             "api_key": settings.openrouter_api_key,
             "model": settings.openrouter_llm_fallback,
-            "body_extra": {"timeout":180.0, "max_retries":10},
+            "body_extra": {},
         },
         {
             "label": "custom",
             "base_url": settings.custom_base_url,
             "api_key": settings.custom_api_key,
             "model": settings.custom_model,
-            "body_extra": {},
+            "body_extra": {"timeout":180.0, "max_retries":10},
         },
         {
             "label": "gemini",

@@ -49,7 +49,7 @@ modal_env = {
     volumes={CHROMA_MOUNT_PATH: chroma_volume},
     # Scale to zero when idle. Modal currently caps this at 20 minutes.
     scaledown_window=600,
-    max_containers=3,
+    max_containers=1,
     # Timeout for individual requests (seconds)
     timeout=300,
     # Memory allocation — embedding model needs ~500MB

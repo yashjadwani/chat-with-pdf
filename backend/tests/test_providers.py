@@ -31,6 +31,6 @@ class TestGetChatProviders:
     def test_only_custom_carries_provider_specific_body(self, monkeypatch):
         _set_keys(monkeypatch, custom="a", openrouter="b", gemini="c")
         by_label = {p["label"]: p for p in get_chat_providers()}
-        assert "reasoning" in by_label["custom"]["body_extra"]
+        assert "max_retries" in by_label["custom"]["body_extra"]
         assert by_label["openrouter"]["body_extra"] == {}
         assert by_label["gemini"]["body_extra"] == {}

@@ -46,7 +46,7 @@ def get_chat_providers() -> list[dict]:
             "label": "custom",
             "base_url": settings.custom_base_url,
             "api_key": settings.custom_api_key,
-            "model": settings.custom_base_url,
+            "model": settings.custom_model,
             "body_extra": {},
         },
         {

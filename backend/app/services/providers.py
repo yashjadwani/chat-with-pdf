@@ -29,15 +29,25 @@ def get_chat_providers() -> list[dict]:
     """Ordered chat providers that have an API key configured."""
     providers = [
         {
-            "label": "opencode",
-            "base_url": settings.opencode_base_url,
-            "api_key": settings.opencode_api_key,
-            "model": settings.opencode_model,
-            # Opencode-specific knobs; harmless to omit for the OpenAI-shaped fallbacks.
-            "body_extra": {
-                "reasoning": {"effort": "none", "exclude": True},
-                "thinking": {"type": "disabled"},
-            },
+            "label": "openrouter",
+            "base_url": settings.openrouter_base_url,
+            "api_key": settings.openrouter_api_key,
+            "model": settings.openrouter_llm_primary,
+            "body_extra": {},
+        },
+        {
+            "label": "openrouter",
+            "base_url": settings.openrouter_base_url,
+            "api_key": settings.openrouter_api_key,
+            "model": settings.openrouter_llm_fallback,
+            "body_extra": {"timeout":180.0, "max_retries":10},
+        },
+        {
+            "label": "custom",
+            "base_url": settings.custom_base_url,
+            "api_key": settings.custom_api_key,
+            "model": settings.custom_base_url,
+            "body_extra": {},
         },
         {
             "label": "gemini",
@@ -45,14 +55,7 @@ def get_chat_providers() -> list[dict]:
             "api_key": settings.gemini_api_key,
             "model": settings.gemini_model,
             "body_extra": {},
-        },
-        {
-            "label": "openrouter",
-            "base_url": settings.openrouter_base_url,
-            "api_key": settings.openrouter_api_key,
-            "model": settings.openrouter_llm_primary,
-            "body_extra": {},
-        },
+        }
     ]
     return [provider for provider in providers if provider["api_key"]]
 

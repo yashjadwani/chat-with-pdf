@@ -4,28 +4,28 @@ from functools import lru_cache
 
 class Settings(BaseSettings):
     # Supabase
-    supabase_url: str
-    supabase_service_role_key: str
+    supabase_url: str = ""
+    supabase_service_role_key: str = ""
     supabase_jwt_audience: str = "authenticated"
     supabase_jwt_issuer: str = ""
 
     # OpenRouter
-    openrouter_api_key: str
+    openrouter_api_key: str = ""
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
-    openrouter_llm_primary: str = "deepseek/deepseek-v4-flash:free"
-    openrouter_llm_fallback: str = "meta-llama/llama-3.3-70b-instruct:free"
+    openrouter_llm_primary: str = "nvidia/nemotron-3-super-120b-a12b:free"
+    openrouter_llm_fallback: str = "apodex/apodex-1.1-mini:free"
     
-    # OpenCode
-    opencode_api_key:str
-    opencode_base_url: str ="https://opencode.ai/zen/v1"
-    opencode_model: str = "deepseek-v4-flash-free"
+    # Custom
+    custom_api_key:str = ""
+    custom_base_url:str = ""
+    custom_model:str = "qwen3.8-27b"
     chat_answer_max_tokens: int = 1000
     document_summary_max_tokens: int = 1500
 
     # Gemini (2nd answer-generation fallback; disabled unless a key is set)
     gemini_api_key: str = ""
     gemini_base_url: str = "https://generativelanguage.googleapis.com/v1beta/openai"
-    gemini_model: str = "gemini-2.5-flash"
+    gemini_model: str = "gemini-3.5-flash"
 
     # Embedding
     embedding_model: str = "intfloat/multilingual-e5-small"

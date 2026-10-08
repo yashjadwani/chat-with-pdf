@@ -164,15 +164,15 @@ async def expand_query_for_retrieval(
     try:
         async with httpx.AsyncClient(timeout=settings.query_expansion_timeout_seconds) as client:
             response = await client.post(
-                f"{settings.opencode_base_url}/chat/completions",
+                f"{settings.openrouter_base_url}/chat/completions",
                 headers={
-                    "Authorization": f"Bearer {settings.opencode_api_key}",
+                    "Authorization": f"Bearer {settings.openrouter_api_key}",
                     "Content-Type": "application/json",
                     "HTTP-Referer": "https://chatwithpdf.app",
                     "X-Title": "PDF Chat",
                 },
                 json={
-                    "model": settings.opencode_model,
+                    "model": settings.openrouter_llm_primary,
                     "messages": [
                         {"role": "system", "content": SYSTEM_PROMPT},
                         {"role": "user", "content": user_prompt},
@@ -198,7 +198,7 @@ async def expand_query_for_retrieval(
         usage = data.get("usage") or {}
         ApiLogDB().insert_log(
             purpose="query_expansion",
-            model=settings.opencode_model,
+            model=settings.openrouter_llm_primary,
             status="success",
             user_id=user_id,
             document_id=document_id,
@@ -224,7 +224,7 @@ async def expand_query_for_retrieval(
         logger.warning(f"Query expansion failed, using fallback: {error_message}")
         ApiLogDB().insert_log(
             purpose="query_expansion",
-            model=settings.opencode_model,
+            model=settings.openrouter_llm_primary,
             status="error",
             user_id=user_id,
             document_id=document_id,
@@ -248,7 +248,7 @@ async def expand_query_for_retrieval(
         logger.warning(f"Query expansion failed, using fallback: {error_message}")
         ApiLogDB().insert_log(
             purpose="query_expansion",
-            model=settings.opencode_model,
+            model=settings.openrouter_llm_primary,
             status="error",
             user_id=user_id,
             document_id=document_id,
@@ -266,7 +266,7 @@ async def expand_query_for_retrieval(
         response_debug = _extract_response_debug(data, content) if "data" in locals() else None
         ApiLogDB().insert_log(
             purpose="query_expansion",
-            model=settings.opencode_model,
+            model=settings.openrouter_llm_primary,
             status="error",
             user_id=user_id,
             document_id=document_id,

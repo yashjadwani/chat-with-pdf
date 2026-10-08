@@ -34,7 +34,9 @@ async def lifespan(app: FastAPI):
     """Startup and shutdown events."""
     logger.info("Starting Chat with PDF backend...")
     logger.info(f"Environment: {settings.app_env}")
-    logger.info(f"Opencode model: {settings.opencode_model}")
+    logger.info(f"Openrouter Primary model: {settings.openrouter_llm_primary}")
+    logger.info(f"Openrouter Fallback model: {settings.openrouter_llm_fallback}")
+    logger.info(f"Custom model: {settings.custom_model}")
     logger.info(f"Embedding model: {settings.embedding_model}")
     logger.info(f"ChromaDB path: {settings.chroma_persist_path}")
     warmup_task = asyncio.create_task(warm_reranker_model())

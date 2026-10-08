@@ -84,15 +84,15 @@ async def generate_summary_answer(
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(
-                f"{settings.opencode_base_url}/chat/completions",
+                f"{settings.openrouter_base_url}/chat/completions",
                 headers={
-                    "Authorization": f"Bearer {settings.opencode_api_key}",
+                    "Authorization": f"Bearer {settings.openrouter_api_key}",
                     "Content-Type": "application/json",
                     "HTTP-Referer": "https://chatwithpdf.app",
                     "X-Title": "Chat with PDF",
                 },
                 json={
-                    "model": settings.opencode_model,
+                    "model": settings.openrouter_llm_primary,
                     "messages": [{"role": "user", "content": prompt}],
                     "max_tokens": settings.document_summary_max_tokens,
                     "reasoning": {"effort": "none","exclude": True,},
@@ -107,7 +107,7 @@ async def generate_summary_answer(
         usage = data.get("usage") or {}
         ApiLogDB().insert_log(
             purpose="document_summary",
-            model=settings.opencode_model,
+            model=settings.openrouter_llm_primary,
             status="success",
             user_id=user_id,
             document_id=document_id,
@@ -125,12 +125,12 @@ async def generate_summary_answer(
             response_content=answer,
             raw_response=data,
         )
-        return answer, settings.opencode_model
+        return answer, settings.openrouter_llm_primary
     except Exception as exc:
         logger.error(f"Document summary generation failed: {str(exc)}")
         ApiLogDB().insert_log(
             purpose="document_summary",
-            model=settings.opencode_model,
+            model=settings.openrouter_llm_primary,
             status="error",
             user_id=user_id,
             document_id=document_id,
